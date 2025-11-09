@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QVBoxLayout
 from PySide6.QtWidgets import QWidget
 
 from logarithmic.fonts import FontManager
+from logarithmic.log_highlighter import LogHighlighter
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,8 @@ class ContentController:
         self,
         fonts: FontManager,
         identifier: str,
-        show_filename_in_status: bool = True
+        show_filename_in_status: bool = True,
+        theme_colors: dict | None = None
     ):
         """Initialize content controller.
         
@@ -41,10 +43,12 @@ class ContentController:
             fonts: Font manager instance
             identifier: Identifier for this content (filename or group name)
             show_filename_in_status: Whether to show filename in status bar
+            theme_colors: Theme color settings
         """
         self._fonts = fonts
         self._identifier = identifier
         self._show_filename = show_filename_in_status
+        self._theme_colors = theme_colors or {}
         
         # State
         self._is_live = True
@@ -58,6 +62,7 @@ class ContentController:
         self._pause_btn: QPushButton | None = None
         self._clear_btn: QPushButton | None = None
         self._status_bar: QLabel | None = None
+        self._highlighter: LogHighlighter | None = None
         
         # Callbacks
         self._on_pause_callback: Callable[[bool], None] | None = None
@@ -115,6 +120,9 @@ class ContentController:
         self._text_edit.setReadOnly(True)
         self._text_edit.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self._text_edit.setFont(self._fonts.get_mono_font(9))
+        
+        # Create syntax highlighter
+        self._highlighter = LogHighlighter(self._text_edit.document(), self._theme_colors)
         
         # Connect scroll detection
         scrollbar = self._text_edit.verticalScrollBar()
@@ -329,3 +337,13 @@ class ContentController:
         if self._status_bar:
             font = self._fonts.get_ui_font(size)
             self._status_bar.setFont(font)
+    
+    def update_theme(self, theme_colors: dict) -> None:
+        """Update theme colors.
+        
+        Args:
+            theme_colors: New theme color dictionary
+        """
+        self._theme_colors = theme_colors
+        if self._highlighter:
+            self._highlighter.update_theme(theme_colors)

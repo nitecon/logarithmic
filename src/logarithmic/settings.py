@@ -70,6 +70,12 @@ class Settings:
                     "log_content": 9,
                     "ui_elements": 10,
                     "status_bar": 9
+                },
+                "theme": {  # Theme/color settings
+                    "error_color": "#FF4444",      # Red for errors
+                    "warning_color": "#FFA500",    # Orange for warnings
+                    "verbose_color": "#888888",    # Gray for verbose
+                    "default_color": "#CCCCCC"     # Default text color
                 }
             }
             return
@@ -372,4 +378,29 @@ class Settings:
         if "font_sizes" not in self._data:
             self._data["font_sizes"] = {}
         self._data["font_sizes"][element] = size
+        self._save()
+    
+    def get_theme_colors(self) -> dict:
+        """Get theme color settings.
+        
+        Returns:
+            Dictionary with color settings
+        """
+        return self._data.get("theme", {
+            "error_color": "#FF4444",
+            "warning_color": "#FFA500",
+            "verbose_color": "#888888",
+            "default_color": "#CCCCCC"
+        })
+    
+    def set_theme_color(self, color_type: str, color: str) -> None:
+        """Set a theme color.
+        
+        Args:
+            color_type: Type of color (error_color, warning_color, etc.)
+            color: Hex color string
+        """
+        if "theme" not in self._data:
+            self._data["theme"] = {}
+        self._data["theme"][color_type] = color
         self._save()

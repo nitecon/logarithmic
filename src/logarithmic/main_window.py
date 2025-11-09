@@ -969,7 +969,8 @@ class MainWindow(QMainWindow):
             return
             
         # Create new viewer window
-        viewer = LogViewerWindow(path_key)
+        theme_colors = self._settings.get_theme_colors()
+        viewer = LogViewerWindow(path_key, theme_colors=theme_colors)
         viewer.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         viewer.destroyed.connect(lambda: self._on_viewer_window_closed(path_key))
         

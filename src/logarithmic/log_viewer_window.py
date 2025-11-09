@@ -31,29 +31,37 @@ class LogViewerWindow(QWidget):
     Implements the LogSubscriber protocol to receive log events from LogManager.
     """
 
-    def __init__(self, file_path: Path, parent: QWidget | None = None) -> None:
+    def __init__(self, file_path: str, theme_colors: dict | None = None):
         """Initialize the log viewer window.
         
         Args:
-            file_path: Path to the log file
-            parent: Parent widget
+            file_path: Path to the log file to display
+            theme_colors: Theme color settings
         """
-        super().__init__(parent)
-        self.file_path = file_path
-        self._path_str = str(file_path)
-        self._position_changed_callback: Callable[[int, int, int, int], None] | None = None
-        self._last_saved_position: tuple[int, int, int, int] | None = None
-        self._current_file_name = str(file_path)  # Current file being displayed
-        self._restart_count = 0  # Track number of file switches (for wildcards)
-        self._is_wildcard = '*' in str(file_path) or '?' in str(file_path)
+        super().__init__()
+        
+        self._path_str = file_path
         self._fonts = get_font_manager()
+        self._theme_colors = theme_colors or {}
+        
+        # Callbacks
         self._set_default_size_callback: Callable[[int, int], None] | None = None
         self._get_other_windows_callback: Callable[[], list] | None = None
-        self._snap_threshold = 20  # pixels - distance to trigger snap
+        
+        # Track last saved position
+        self._last_saved_position: tuple[int, int, int, int] | None = None
+        
+        # Snap threshold in pixels
+        self._snap_threshold = 20
         
         # Create content controller
         filename = Path(file_path).name
-        self._content_controller = ContentController(self._fonts, filename, show_filename_in_status=True)
+        self._content_controller = ContentController(
+            self._fonts, 
+            filename, 
+            show_filename_in_status=True,
+            theme_colors=self._theme_colors
+        )
         
         self._setup_ui()
         
@@ -62,7 +70,7 @@ class LogViewerWindow(QWidget):
         self.resize(800, 600)
         
         # Set window title
-        filename = Path(self.file_path).name
+        filename = Path(self._path_str).name
         self.setWindowTitle(f"Log Viewer - {filename}")
         
         # Main layout
@@ -384,3 +392,12 @@ class LogViewerWindow(QWidget):
             size: Font size in points
         """
         self._content_controller.set_status_font_size(size)
+    
+    def update_theme(self, theme_colors: dict) -> None:
+        """Update theme colors.
+        
+        Args:
+            theme_colors: New theme color dictionary
+        """
+        self._theme_colors = theme_colors
+        self._content_controller.update_theme(theme_colors)

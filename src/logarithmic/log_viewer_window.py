@@ -16,6 +16,7 @@ from PySide6.QtWidgets import QPushButton
 from PySide6.QtWidgets import QVBoxLayout
 from PySide6.QtWidgets import QWidget
 
+from logarithmic.content_controller import ContentController
 from logarithmic.fonts import get_font_manager
 
 logger = logging.getLogger(__name__)
@@ -40,12 +41,8 @@ class LogViewerWindow(QWidget):
         super().__init__(parent)
         self.file_path = file_path
         self._path_str = str(file_path)
-        self._is_paused = False
         self._position_changed_callback: Callable[[int, int, int, int], None] | None = None
         self._last_saved_position: tuple[int, int, int, int] | None = None
-        self._is_live_mode = True  # Auto-scroll enabled by default
-        self._user_scrolled = False  # Track if user manually scrolled
-        self._line_count = 0  # Track number of lines displayed
         self._current_file_name = str(file_path)  # Current file being displayed
         self._restart_count = 0  # Track number of file switches (for wildcards)
         self._is_wildcard = '*' in str(file_path) or '?' in str(file_path)
@@ -54,47 +51,25 @@ class LogViewerWindow(QWidget):
         self._get_other_windows_callback: Callable[[], list] | None = None
         self._snap_threshold = 20  # pixels - distance to trigger snap
         
+        # Create content controller
+        filename = Path(file_path).name
+        self._content_controller = ContentController(self._fonts, filename, show_filename_in_status=True)
+        
         self._setup_ui()
         
     def _setup_ui(self) -> None:
         """Set up the user interface."""
         self.resize(800, 600)
         
+        # Set window title
+        filename = Path(self.file_path).name
+        self.setWindowTitle(f"Log Viewer - {filename}")
+        
         # Main layout
         layout = QVBoxLayout(self)
         
-        # Top: Controls
+        # Window controls (above content)
         controls_layout = QHBoxLayout()
-        
-        # Go Live button (hidden by default, shown when in scroll mode)
-        self.go_live_button = QPushButton("Go Live")
-        self.go_live_button.setFont(self._fonts.get_ui_font(10, bold=True))
-        self.go_live_button.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                font-weight: bold;
-                padding: 5px 15px;
-                border-radius: 3px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-        """)
-        self.go_live_button.clicked.connect(self._on_go_live_clicked)
-        self.go_live_button.hide()  # Hidden by default (in live mode)
-        controls_layout.addWidget(self.go_live_button)
-        
-        self.pause_button = QPushButton("Pause")
-        self.pause_button.setFont(self._fonts.get_ui_font(10))
-        self.pause_button.setCheckable(True)
-        self.pause_button.toggled.connect(self._on_pause_clicked)
-        controls_layout.addWidget(self.pause_button)
-        
-        self.clear_button = QPushButton("Clear")
-        self.clear_button.setFont(self._fonts.get_ui_font(10))
-        self.clear_button.clicked.connect(self._on_clear_clicked)
-        controls_layout.addWidget(self.clear_button)
         
         # Set Default Size button
         set_size_button = QPushButton("Set Default Size")
@@ -104,37 +79,11 @@ class LogViewerWindow(QWidget):
         controls_layout.addWidget(set_size_button)
         
         controls_layout.addStretch()
-        
         layout.addLayout(controls_layout)
         
-        # Center: Log Content
-        self.text_edit = QPlainTextEdit()
-        self.text_edit.setReadOnly(True)
-        self.text_edit.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
-        
-        # Use Red Hat Mono for log content
-        self.text_edit.setFont(self._fonts.get_mono_font(9))
-        
-        # Connect scroll bar to detect user scrolling
-        scrollbar = self.text_edit.verticalScrollBar()
-        scrollbar.valueChanged.connect(self._on_scroll_changed)
-        
-        layout.addWidget(self.text_edit)
-        
-        # Bottom: Status Bar
-        self.status_bar = QLabel()
-        self.status_bar.setFont(self._fonts.get_ui_font(10))
-        self.status_bar.setStyleSheet("""
-            QLabel {
-                background-color: #2b2b2b;
-                color: #cccccc;
-                padding: 5px;
-                border-top: 1px solid #555555;
-            }
-        """)
-        self.status_bar.setTextFormat(Qt.TextFormat.PlainText)
-        self._update_status_bar()
-        layout.addWidget(self.status_bar)
+        # Content controller widget (includes controls, text edit, status bar)
+        content_widget = self._content_controller.create_widget()
+        layout.addWidget(content_widget)
         
     def append_text(self, text: str) -> None:
         """Append new text to the log view.
@@ -142,21 +91,7 @@ class LogViewerWindow(QWidget):
         Args:
             text: Text content to append
         """
-        logger.debug(f"append_text called with {len(text)} chars, paused={self._is_paused}, live_mode={self._is_live_mode}")
-        if not self._is_paused:
-            # Move cursor to end and insert text (better than appendPlainText for large content)
-            cursor = self.text_edit.textCursor()
-            cursor.movePosition(QTextCursor.MoveOperation.End)
-            cursor.insertText(text)
-            self.text_edit.setTextCursor(cursor)
-            
-            # Update line count
-            self._line_count += text.count('\n')
-            self._update_status_bar()
-            
-            # Auto-scroll to bottom only if in live mode
-            if self._is_live_mode:
-                self.text_edit.moveCursor(QTextCursor.MoveOperation.End)
+        self._content_controller.append_text(text)
             
     def set_status_message(self, message: str) -> None:
         """Display a status message in the log view.
@@ -164,8 +99,8 @@ class LogViewerWindow(QWidget):
         Args:
             message: Status message to display
         """
-        self.text_edit.appendPlainText(f"\n[{message}]\n")
-        self.text_edit.moveCursor(QTextCursor.MoveOperation.End)
+        current_text = self._content_controller.get_text()
+        self._content_controller.set_text(current_text + f"\n[{message}]\n")
         
     def is_paused(self) -> bool:
         """Check if the viewer is currently paused.
@@ -173,65 +108,16 @@ class LogViewerWindow(QWidget):
         Returns:
             True if paused, False otherwise
         """
-        return self._is_paused
+        return self._content_controller.is_paused()
         
-    def _on_pause_clicked(self, checked: bool) -> None:
-        """Handle pause button click.
-        
-        Args:
-            checked: True if button is checked (paused)
-        """
-        self._is_paused = checked
-        if checked:
-            self.pause_button.setText("Resume")
-        else:
-            self.pause_button.setText("Pause")
-        self._update_status_bar()
-            
-    def _on_clear_clicked(self) -> None:
-        """Handle clear button click."""
-        self.text_edit.clear()
-        self._line_count = 0
-        self._update_status_bar()
-        
-    def _on_scroll_changed(self, value: int) -> None:
-        """Handle scroll bar value change.
-        
-        Detects when user scrolls up (away from bottom) and switches to scroll mode.
+    def set_pause_callback(self, callback: Callable[[bool], None]) -> None:
+        """Set callback for when pause state changes.
         
         Args:
-            value: Current scroll bar value
+            callback: Function to call with pause state (True=paused, False=resumed)
         """
-        scrollbar = self.text_edit.verticalScrollBar()
-        
-        # Check if we're at the bottom (within 10 pixels)
-        at_bottom = value >= scrollbar.maximum() - 10
-        
-        if not at_bottom and self._is_live_mode:
-            # User scrolled up, switch to scroll mode
-            self._is_live_mode = False
-            self.go_live_button.show()
-            self._update_status_bar()
-            logger.info(f"Switched to scroll mode for {self._path_str}")
-        elif at_bottom and not self._is_live_mode:
-            # User scrolled to bottom, could auto-switch back to live mode
-            # But we'll require explicit "Go Live" button click for better UX
-            pass
-            
-    def _on_go_live_clicked(self) -> None:
-        """Handle Go Live button click.
-        
-        Switches back to live mode and scrolls to bottom.
-        """
-        self._is_live_mode = True
-        self.go_live_button.hide()
-        self._update_status_bar()
-        
-        # Scroll to bottom
-        self.text_edit.moveCursor(QTextCursor.MoveOperation.End)
-        
-        logger.info(f"Switched to live mode for {self._path_str}")
-        
+        self._content_controller.set_pause_callback(callback)
+    
     def set_default_size_callback(self, callback: Callable[[int, int], None]) -> None:
         """Set callback for when user sets default size.
         
@@ -382,7 +268,7 @@ class LogViewerWindow(QWidget):
             content: New content to append
         """
         if path == self._path_str:
-            if not self._is_paused:
+            if not self.is_paused():
                 self.append_text(content)
                 logger.debug(f"Appended {len(content)} chars to viewer for {path}")
             else:
@@ -395,9 +281,7 @@ class LogViewerWindow(QWidget):
             path: Log file path
         """
         if path == self._path_str:
-            self.text_edit.clear()
-            self._line_count = 0
-            self._update_status_bar()
+            self._content_controller.clear()
             logger.info(f"Cleared viewer for {path}")
     
     def on_stream_interrupted(self, path: str, reason: str) -> None:
@@ -419,45 +303,35 @@ class LogViewerWindow(QWidget):
                     else:
                         self._current_file_name = new_filename
                     logger.info(f"Initial wildcard file: {self._current_file_name}")
-                self._update_status_bar()
                 return  # Don't show separator for initial file
             
             # Show separator for actual interruptions
             separator = (
                 "\n"
                 "═" * 70 + "\n"
-                f"║  Stream Interrupted: {reason}\n"
+                f"║  STREAM INTERRUPTED: {reason}\n"
                 f"║  Waiting for file to be recreated...\n"
                 "═" * 70 + "\n"
             )
-            self.text_edit.appendPlainText(separator)
-            self._line_count += separator.count('\n')
+            current_text = self._content_controller.get_text()
+            self._content_controller.set_text(current_text + separator)
             
             # Extract new filename from reason
-            if "Switching from" in reason and " to " in reason:
-                # File switch - increment restart count
-                parts = reason.split(" to ")
-                if len(parts) == 2:
-                    new_filename = parts[1].strip()
-                    # Extract just the filename if it's a full path
-                    if '\\' in new_filename or '/' in new_filename:
-                        self._current_file_name = Path(new_filename).name
-                    else:
-                        self._current_file_name = new_filename
-                    # Increment restart count for wildcard patterns
-                    if self._is_wildcard:
-                        self._restart_count += 1
-                        logger.info(f"Wildcard restart #{self._restart_count}: switched to {self._current_file_name}")
+            if "Switched to file:" in reason:
+                # Extract filename from reason (format: "Switched to file: path/to/file.txt")
+                try:
+                    new_file = reason.split("Switched to file:")[1].strip()
+                    self._current_file_name = new_file
+                    self._restart_count += 1
+                    logger.info(f"Updated current file to: {new_file}, restart count: {self._restart_count}")
+                except Exception as e:
+                    logger.error(f"Failed to extract filename from reason: {e}")
             
-            self._update_status_bar()
-            if self._is_live_mode:
-                self.text_edit.moveCursor(QTextCursor.MoveOperation.End)
             logger.info(f"Displayed stream interruption for {path}: {reason}")
     
     def on_stream_resumed(self, path: str) -> None:
         """Called when the log stream resumes.
         
-        Args:
             path: Log file path
         """
         if path == self._path_str:
@@ -468,47 +342,10 @@ class LogViewerWindow(QWidget):
                 "═" * 70 + "\n"
                 "\n"
             )
-            self.text_edit.appendPlainText(separator)
-            self._line_count += separator.count('\n')
-            self._update_status_bar()
-            if self._is_live_mode:
-                self.text_edit.moveCursor(QTextCursor.MoveOperation.End)
+            current_text = self._content_controller.get_text()
+            self._content_controller.set_text(current_text + separator)
             logger.info(f"Displayed stream resumption for {path}")
     
-    def _update_status_bar(self) -> None:
-        """Update the status bar with current file information."""
-        # Get file size if it exists
-        file_size_str = "N/A"
-        try:
-            if Path(self._current_file_name).exists():
-                file_size = Path(self._current_file_name).stat().st_size
-                # Format size in human-readable format
-                if file_size < 1024:
-                    file_size_str = f"{file_size} B"
-                elif file_size < 1024 * 1024:
-                    file_size_str = f"{file_size / 1024:.1f} KB"
-                elif file_size < 1024 * 1024 * 1024:
-                    file_size_str = f"{file_size / (1024 * 1024):.1f} MB"
-                else:
-                    file_size_str = f"{file_size / (1024 * 1024 * 1024):.1f} GB"
-        except Exception:
-            pass
-        
-        # Get just the filename (not full path) for display
-        display_name = Path(self._current_file_name).name
-        
-        # Build status text
-        mode = "🔴 LIVE" if self._is_live_mode else "⏸ SCROLL"
-        pause_status = " [PAUSED]" if self._is_paused else ""
-        
-        # Add restart count for wildcard patterns
-        restart_info = ""
-        if self._is_wildcard and self._restart_count > 0:
-            restart_info = f"  |  🔄 {self._restart_count} restarts"
-        
-        status_text = f"📄 {display_name}  |  📊 {self._line_count:,} lines  |  💾 {file_size_str}  |  {mode}{pause_status}{restart_info}"
-        
-        self.status_bar.setText(status_text)
     
     def flash_window(self) -> None:
         """Flash the window to get user's attention."""

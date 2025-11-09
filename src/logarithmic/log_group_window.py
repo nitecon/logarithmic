@@ -8,10 +8,15 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QMoveEvent
 from PySide6.QtGui import QResizeEvent
 from PySide6.QtGui import QTextCursor
+from PySide6.QtWidgets import QButtonGroup
+from PySide6.QtWidgets import QDialog
+from PySide6.QtWidgets import QDialogButtonBox
 from PySide6.QtWidgets import QHBoxLayout
 from PySide6.QtWidgets import QLabel
+from PySide6.QtWidgets import QMainWindow
 from PySide6.QtWidgets import QPlainTextEdit
 from PySide6.QtWidgets import QPushButton
+from PySide6.QtWidgets import QRadioButton
 from PySide6.QtWidgets import QTabWidget
 from PySide6.QtWidgets import QVBoxLayout
 from PySide6.QtWidgets import QWidget
@@ -57,8 +62,9 @@ class LogGroupWindow(QWidget):
         # Combined mode widget and controls
         self._combined_widget: QPlainTextEdit | None = None
         self._combined_controls: dict = {}  # Store combined mode controls
+        self._combined_line_count: int = 0  # Separate line count for combined view only
         
-        # Line counts per log
+        # Line counts per log (for tabbed mode)
         self._line_counts: dict[str, int] = {}
         
         # Buffer content for each log (preserved across mode switches)
@@ -259,6 +265,9 @@ class LogGroupWindow(QWidget):
         self._mode = "combined"
         self.mode_button.setText("Switch to Tabbed Mode")
         
+        # Reset combined view line count (fresh start)
+        self._combined_line_count = 0
+        
         # Save current tab content to buffers
         for path, widgets in self._tab_widgets.items():
             self._log_buffers[path] = widgets['text_edit'].toPlainText()
@@ -418,6 +427,9 @@ class LogGroupWindow(QWidget):
                     lines = content.split('\n')
                     prefixed_lines = [f"[{filename}] {line}" if line else "" for line in lines]
                     prefixed_content = '\n'.join(prefixed_lines)
+                    
+                    # Update combined view line count
+                    self._combined_line_count += content.count('\n')
                     
                     cursor = self._combined_widget.textCursor()
                     cursor.movePosition(QTextCursor.MoveOperation.End)
@@ -608,11 +620,20 @@ class LogGroupWindow(QWidget):
         self._update_combined_status()
     
     def _on_combined_clear(self) -> None:
-        """Handle Clear button click in combined mode."""
-        if not self._combined_widget:
+        """Handle Clear button click in combined mode.
+        
+        This only clears the visible combined view, not the underlying log buffers.
+        Tabbed mode content is preserved.
+        """
+        if not self._combined_widget or not self._combined_controls:
             return
         
-        # Clear the widget but keep the warning message
+        logger.info(f"Clearing combined view for group {self.group_name}")
+        
+        # Completely clear the widget first
+        self._combined_widget.clear()
+        
+        # Then set the warning message
         warning = (
             "═" * 80 + "\n"
             "║  COMBINED MODE - History Cleared\n"
@@ -621,7 +642,19 @@ class LogGroupWindow(QWidget):
             "═" * 80 + "\n\n"
         )
         self._combined_widget.setPlainText(warning)
+        
+        # Reset ONLY the combined view line count (not the individual log line counts)
+        self._combined_line_count = 0
+        
+        # Ensure we're in live mode
+        self._combined_controls['is_live'] = True
+        self._combined_controls['go_live_btn'].hide()
+        
+        # Scroll to bottom (end of warning message)
+        self._combined_widget.moveCursor(QTextCursor.MoveOperation.End)
+        
         self._update_combined_status()
+        logger.info(f"Combined view cleared successfully")
     
     def _update_combined_status(self) -> None:
         """Update status bar for combined mode."""
@@ -629,11 +662,11 @@ class LogGroupWindow(QWidget):
             return
         
         status_bar = self._combined_controls['status_bar']
-        total_lines = sum(self._line_counts.values())
+        # Use combined view line count (not individual log counts)
         mode = "🔴 LIVE" if self._combined_controls['is_live'] else "⏸ SCROLL"
         pause_status = " [PAUSED]" if self._combined_controls['is_paused'] else ""
         
-        status_text = f"📊 {total_lines:,} total lines  |  {mode}{pause_status}"
+        status_text = f"📊 {self._combined_line_count:,} lines  |  {mode}{pause_status}"
         status_bar.setText(status_text)
     
     def _on_set_default_size_clicked(self) -> None:

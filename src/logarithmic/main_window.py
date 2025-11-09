@@ -637,12 +637,26 @@ class MainWindow(QMainWindow):
         group_window.destroyed.connect(lambda: self._on_group_window_closed(group_name))
         
         # Set callbacks
+        group_window.set_position_changed_callback(
+            lambda x, y, w, h: self._on_window_position_changed(group_name, x, y, w, h)
+        )
         group_window.set_default_size_callback(
             lambda w, h: self._settings.set_default_window_size(w, h)
         )
         group_window.set_other_windows_callback(
-            lambda: list(self._viewer_windows.values()) + list(self._group_windows.values())
+            lambda: list(self._viewer_windows.values()) + [gw for gw in self._group_windows.values() if gw != group_window]
         )
+        
+        # Restore position if saved
+        pos = self._settings.get_window_position(group_name)
+        if pos:
+            group_window.move(pos["x"], pos["y"])
+            group_window.resize(pos["width"], pos["height"])
+            logger.info(f"Restored group window position for: {group_name}")
+        else:
+            # Apply default size
+            default_width, default_height = self._settings.get_default_window_size()
+            group_window.resize(default_width, default_height)
         
         # Add all logs assigned to this group
         for path, group in self._log_groups.items():
@@ -828,11 +842,11 @@ class MainWindow(QMainWindow):
         viewer.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         viewer.destroyed.connect(lambda: self._on_viewer_window_closed(path_key))
         
-        # Connect watcher pause/resume to viewer pause button if watcher exists
+        # Connect watcher pause/resume to content controller pause callback
         if path_key in self._watchers:
             watcher = self._watchers[path_key]
-            viewer.pause_button.clicked.connect(
-                lambda checked: watcher.pause() if checked else watcher.resume()
+            viewer.set_pause_callback(
+                lambda paused: watcher.pause() if paused else watcher.resume()
             )
         
         # Restore position if requested
@@ -842,13 +856,6 @@ class MainWindow(QMainWindow):
                 viewer.move(pos["x"], pos["y"])
                 viewer.resize(pos["width"], pos["height"])
                 logger.info(f"Restored window position for: {path_key}")
-        
-        # Connect pause/resume to watcher
-        watcher = self._watchers.get(path_key)
-        if watcher:
-            viewer.pause_button.clicked.connect(
-                lambda checked: watcher.pause() if checked else watcher.resume()
-            )
             
         # Set callbacks
         viewer.set_position_changed_callback(
@@ -1112,7 +1119,7 @@ class MainWindow(QMainWindow):
         logger.info("Session reset")
         
     def _on_set_all_window_sizes(self) -> None:
-        """Set all log viewer windows to the default size."""
+        """Set all log viewer and group windows to the default size."""
         default_width, default_height = self._settings.get_default_window_size()
         
         count = 0
@@ -1120,11 +1127,15 @@ class MainWindow(QMainWindow):
             viewer.resize(default_width, default_height)
             count += 1
         
+        for group_window in self._group_windows.values():
+            group_window.resize(default_width, default_height)
+            count += 1
+        
         logger.info(f"Resized {count} windows to {default_width}x{default_height}")
     
     def _on_reset_windows(self) -> None:
-        """Handle reset windows button click - cascade all viewer windows."""
-        if not self._viewer_windows:
+        """Handle reset windows button click - cascade all viewer and group windows."""
+        if not self._viewer_windows and not self._group_windows:
             return
             
         # Get main window position
@@ -1132,10 +1143,11 @@ class MainWindow(QMainWindow):
         offset_x = main_pos.x() + 50
         offset_y = main_pos.y() + 50
         
-        # Cascade windows
-        for i, viewer in enumerate(self._viewer_windows.values()):
-            viewer.move(offset_x + (i * 30), offset_y + (i * 30))
-            viewer.resize(800, 600)
+        # Cascade all windows (viewers + groups)
+        all_windows = list(self._viewer_windows.values()) + list(self._group_windows.values())
+        for i, window in enumerate(all_windows):
+            window.move(offset_x + (i * 30), offset_y + (i * 30))
+            window.resize(800, 600)
             
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         """Handle drag enter event.

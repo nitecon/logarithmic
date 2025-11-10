@@ -46,4 +46,18 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=None,
+)
+
+# Create macOS app bundle
+app = BUNDLE(
+    exe,
+    name='Logarithmic.app',
+    icon=None,
+    bundle_identifier='com.logarithmic.app',
+    info_plist={
+        'NSPrincipalClass': 'NSApplication',
+        'NSHighResolutionCapable': 'True',
+        'LSBackgroundOnly': 'False',
+    },
 )

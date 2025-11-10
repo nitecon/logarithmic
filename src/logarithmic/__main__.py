@@ -3,6 +3,7 @@
 import logging
 import sys
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
 from logarithmic.main_window import MainWindow
@@ -14,6 +15,13 @@ def main() -> int:
     Returns:
         Exit code
     """
+    # Enable high DPI scaling for Retina displays
+    # Note: In Qt 6, high DPI scaling is enabled by default
+    # We only need to set the rounding policy for better scaling on Retina displays
+    QApplication.setHighDpiScaleFactorRoundingPolicy(
+        Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
+    )
+    
     # Configure logging
     logging.basicConfig(
         level=logging.DEBUG,

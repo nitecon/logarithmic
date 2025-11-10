@@ -193,6 +193,9 @@ class MainWindow(QMainWindow):
         # Settings manager
         self._settings = Settings()
         
+        # Store references to UI elements for dynamic font sizing
+        self._ui_elements: list[QWidget] = []
+        
         # Track main window position changes
         self._last_main_position: tuple[int, int, int, int] | None = None
         
@@ -229,28 +232,13 @@ class MainWindow(QMainWindow):
         self.path_input.setPlaceholderText("Enter log file path or wildcard pattern (e.g., C:/logs/*.txt)")
         self.path_input.setFont(self._fonts.get_ui_font(10))
         control_layout.addWidget(self.path_input)
+        self._ui_elements.append(self.path_input)
         
-        add_button = QPushButton("Add Log")
-        add_button.setFont(self._fonts.get_ui_font(10, bold=True))
-        add_button.clicked.connect(self._on_add_log)
-        control_layout.addWidget(add_button)
-        
-        new_session_button = QPushButton("New Session")
-        new_session_button.setFont(self._fonts.get_ui_font(10))
-        new_session_button.setToolTip("Clear all logs and start fresh")
-        new_session_button.clicked.connect(self._on_reset_session)
-        control_layout.addWidget(new_session_button)
-        
-        reset_windows_button = QPushButton("Reset Windows")
-        reset_windows_button.setFont(self._fonts.get_ui_font(10))
-        reset_windows_button.clicked.connect(self._on_reset_windows)
-        control_layout.addWidget(reset_windows_button)
-        
-        set_all_sizes_button = QPushButton("Set Sizes")
-        set_all_sizes_button.setFont(self._fonts.get_ui_font(9))
-        set_all_sizes_button.setToolTip("Resize all log viewer windows to the default size")
-        set_all_sizes_button.clicked.connect(self._on_set_all_window_sizes)
-        control_layout.addWidget(set_all_sizes_button)
+        self.add_button = QPushButton("Add Log")
+        self.add_button.setFont(self._fonts.get_ui_font(10, bold=True))
+        self.add_button.clicked.connect(self._on_add_log)
+        control_layout.addWidget(self.add_button)
+        self._ui_elements.append(self.add_button)
         
         layout.addWidget(control_frame)
         
@@ -259,9 +247,10 @@ class MainWindow(QMainWindow):
         session_frame.setFrameShape(QFrame.Shape.StyledPanel)
         session_layout = QHBoxLayout(session_frame)
         
-        session_label = QLabel("Session:")
-        session_label.setFont(self._fonts.get_ui_font(10, bold=True))
-        session_layout.addWidget(session_label)
+        self.session_label = QLabel("Session:")
+        self.session_label.setFont(self._fonts.get_ui_font(10, bold=True))
+        session_layout.addWidget(self.session_label)
+        self._ui_elements.append(self.session_label)
         
         self.session_combo = QComboBox()
         self.session_combo.setFont(self._fonts.get_ui_font(10))
@@ -269,23 +258,34 @@ class MainWindow(QMainWindow):
         self.session_combo.setEditable(True)  # Allow typing new session name
         self.session_combo.currentTextChanged.connect(self._on_session_changed)
         session_layout.addWidget(self.session_combo)
+        self._ui_elements.append(self.session_combo)
         
-        save_session_button = QPushButton("Save")
-        save_session_button.setFont(self._fonts.get_ui_font(9, bold=True))
-        save_session_button.setToolTip("Save current session (or enter new name to create)")
-        save_session_button.clicked.connect(self._on_save_session)
-        session_layout.addWidget(save_session_button)
+        self.save_session_button = QPushButton("Save")
+        self.save_session_button.setFont(self._fonts.get_ui_font(9, bold=True))
+        self.save_session_button.setToolTip("Save current session (or enter new name to create)")
+        self.save_session_button.clicked.connect(self._on_save_session)
+        session_layout.addWidget(self.save_session_button)
+        self._ui_elements.append(self.save_session_button)
         
-        duplicate_session_button = QPushButton("Duplicate")
-        duplicate_session_button.setFont(self._fonts.get_ui_font(9))
-        duplicate_session_button.setToolTip("Duplicate current session with a new name")
-        duplicate_session_button.clicked.connect(self._on_duplicate_session)
-        session_layout.addWidget(duplicate_session_button)
+        self.duplicate_session_button = QPushButton("Duplicate")
+        self.duplicate_session_button.setFont(self._fonts.get_ui_font(9))
+        self.duplicate_session_button.setToolTip("Duplicate current session with a new name")
+        self.duplicate_session_button.clicked.connect(self._on_duplicate_session)
+        session_layout.addWidget(self.duplicate_session_button)
+        self._ui_elements.append(self.duplicate_session_button)
         
-        delete_session_button = QPushButton("Delete")
-        delete_session_button.setFont(self._fonts.get_ui_font(9))
-        delete_session_button.clicked.connect(self._on_delete_session)
-        session_layout.addWidget(delete_session_button)
+        self.delete_session_button = QPushButton("Delete")
+        self.delete_session_button.setFont(self._fonts.get_ui_font(9))
+        self.delete_session_button.clicked.connect(self._on_delete_session)
+        session_layout.addWidget(self.delete_session_button)
+        self._ui_elements.append(self.delete_session_button)
+        
+        self.new_session_button = QPushButton("New Session")
+        self.new_session_button.setFont(self._fonts.get_ui_font(9))
+        self.new_session_button.setToolTip("Clear all logs and start fresh")
+        self.new_session_button.clicked.connect(self._on_reset_session)
+        session_layout.addWidget(self.new_session_button)
+        self._ui_elements.append(self.new_session_button)
         
         session_layout.addStretch()
         layout.addWidget(session_frame)
@@ -296,14 +296,16 @@ class MainWindow(QMainWindow):
         # Tabbed interface
         self.tabs = QTabWidget()
         self.tabs.setFont(self._fonts.get_ui_font(10))
+        self._ui_elements.append(self.tabs)
         
         # === Logs Tab ===
         logs_tab = QWidget()
         logs_layout = QVBoxLayout(logs_tab)
         
-        logs_label = QLabel("Tracked Logs:")
-        logs_label.setFont(self._fonts.get_ui_font(11, bold=True))
-        logs_layout.addWidget(logs_label)
+        self.logs_label = QLabel("Tracked Logs:")
+        self.logs_label.setFont(self._fonts.get_ui_font(11, bold=True))
+        logs_layout.addWidget(self.logs_label)
+        self._ui_elements.append(self.logs_label)
         
         self.log_list = QListWidget()
         self.log_list.itemDoubleClicked.connect(self._on_log_double_clicked)
@@ -316,14 +318,16 @@ class MainWindow(QMainWindow):
         groups_layout = QVBoxLayout(groups_tab)
         
         groups_header_layout = QHBoxLayout()
-        groups_label = QLabel("Log Groups:")
-        groups_label.setFont(self._fonts.get_ui_font(11, bold=True))
-        groups_header_layout.addWidget(groups_label)
+        self.groups_label = QLabel("Log Groups:")
+        self.groups_label.setFont(self._fonts.get_ui_font(11, bold=True))
+        groups_header_layout.addWidget(self.groups_label)
+        self._ui_elements.append(self.groups_label)
         
-        add_group_button = QPushButton("+ Add Group")
-        add_group_button.setFont(self._fonts.get_ui_font(9))
-        add_group_button.clicked.connect(self._on_add_group)
-        groups_header_layout.addWidget(add_group_button)
+        self.add_group_button = QPushButton("+ Add Group")
+        self.add_group_button.setFont(self._fonts.get_ui_font(9))
+        self.add_group_button.clicked.connect(self._on_add_group)
+        groups_header_layout.addWidget(self.add_group_button)
+        self._ui_elements.append(self.add_group_button)
         groups_header_layout.addStretch()
         
         groups_layout.addLayout(groups_header_layout)
@@ -343,16 +347,18 @@ class MainWindow(QMainWindow):
         font_sizes_frame.setFrameShape(QFrame.Shape.StyledPanel)
         font_sizes_layout = QVBoxLayout(font_sizes_frame)
         
-        font_sizes_title = QLabel("Font Sizes")
-        font_sizes_title.setFont(self._fonts.get_ui_font(12, bold=True))
-        font_sizes_layout.addWidget(font_sizes_title)
+        self.font_sizes_title = QLabel("Font Sizes")
+        self.font_sizes_title.setFont(self._fonts.get_ui_font(12, bold=True))
+        font_sizes_layout.addWidget(self.font_sizes_title)
+        self._ui_elements.append(self.font_sizes_title)
         
         # Log content font size
         log_font_layout = QHBoxLayout()
-        log_font_label = QLabel("Log Content:")
-        log_font_label.setFont(self._fonts.get_ui_font(10))
-        log_font_layout.addWidget(log_font_label)
+        self.log_font_label = QLabel("Log Content:")
+        self.log_font_label.setFont(self._fonts.get_ui_font(10))
+        log_font_layout.addWidget(self.log_font_label)
         log_font_layout.addStretch()
+        self._ui_elements.append(self.log_font_label)
         
         self.log_font_size_spin = QSpinBox()
         self.log_font_size_spin.setRange(6, 24)
@@ -361,15 +367,17 @@ class MainWindow(QMainWindow):
         self.log_font_size_spin.setFont(self._fonts.get_ui_font(10))
         self.log_font_size_spin.valueChanged.connect(self._on_log_font_size_changed)
         log_font_layout.addWidget(self.log_font_size_spin)
+        self._ui_elements.append(self.log_font_size_spin)
         
         font_sizes_layout.addLayout(log_font_layout)
         
         # UI font size
         ui_font_layout = QHBoxLayout()
-        ui_font_label = QLabel("UI Elements:")
-        ui_font_label.setFont(self._fonts.get_ui_font(10))
-        ui_font_layout.addWidget(ui_font_label)
+        self.ui_font_label = QLabel("UI Elements:")
+        self.ui_font_label.setFont(self._fonts.get_ui_font(10))
+        ui_font_layout.addWidget(self.ui_font_label)
         ui_font_layout.addStretch()
+        self._ui_elements.append(self.ui_font_label)
         
         self.ui_font_size_spin = QSpinBox()
         self.ui_font_size_spin.setRange(6, 18)
@@ -378,15 +386,17 @@ class MainWindow(QMainWindow):
         self.ui_font_size_spin.setFont(self._fonts.get_ui_font(10))
         self.ui_font_size_spin.valueChanged.connect(self._on_ui_font_size_changed)
         ui_font_layout.addWidget(self.ui_font_size_spin)
+        self._ui_elements.append(self.ui_font_size_spin)
         
         font_sizes_layout.addLayout(ui_font_layout)
         
         # Status bar font size
         status_font_layout = QHBoxLayout()
-        status_font_label = QLabel("Status Bar:")
-        status_font_label.setFont(self._fonts.get_ui_font(10))
-        status_font_layout.addWidget(status_font_label)
+        self.status_font_label = QLabel("Status Bar:")
+        self.status_font_label.setFont(self._fonts.get_ui_font(10))
+        status_font_layout.addWidget(self.status_font_label)
         status_font_layout.addStretch()
+        self._ui_elements.append(self.status_font_label)
         
         self.status_font_size_spin = QSpinBox()
         self.status_font_size_spin.setRange(6, 14)
@@ -395,10 +405,51 @@ class MainWindow(QMainWindow):
         self.status_font_size_spin.setFont(self._fonts.get_ui_font(10))
         self.status_font_size_spin.valueChanged.connect(self._on_status_font_size_changed)
         status_font_layout.addWidget(self.status_font_size_spin)
+        self._ui_elements.append(self.status_font_size_spin)
         
         font_sizes_layout.addLayout(status_font_layout)
         
         settings_layout.addWidget(font_sizes_frame)
+        
+        # Window Management section
+        window_mgmt_frame = QFrame()
+        window_mgmt_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        window_mgmt_layout = QVBoxLayout(window_mgmt_frame)
+        
+        self.window_mgmt_title = QLabel("Window Management")
+        self.window_mgmt_title.setFont(self._fonts.get_ui_font(12, bold=True))
+        window_mgmt_layout.addWidget(self.window_mgmt_title)
+        self._ui_elements.append(self.window_mgmt_title)
+        
+        # Reset Windows button with description
+        reset_windows_desc = QLabel("Reset all window positions to default locations")
+        reset_windows_desc.setFont(self._fonts.get_ui_font(9))
+        reset_windows_desc.setStyleSheet("color: gray;")
+        window_mgmt_layout.addWidget(reset_windows_desc)
+        self._ui_elements.append(reset_windows_desc)
+        
+        self.reset_windows_button = QPushButton("Reset Window Positions")
+        self.reset_windows_button.setFont(self._fonts.get_ui_font(10))
+        self.reset_windows_button.clicked.connect(self._on_reset_windows)
+        window_mgmt_layout.addWidget(self.reset_windows_button)
+        self._ui_elements.append(self.reset_windows_button)
+        
+        window_mgmt_layout.addSpacing(10)
+        
+        # Set Sizes button with description
+        set_sizes_desc = QLabel("Resize all open log viewer windows to the default size")
+        set_sizes_desc.setFont(self._fonts.get_ui_font(9))
+        set_sizes_desc.setStyleSheet("color: gray;")
+        window_mgmt_layout.addWidget(set_sizes_desc)
+        self._ui_elements.append(set_sizes_desc)
+        
+        self.set_all_sizes_button = QPushButton("Apply Default Size to All Windows")
+        self.set_all_sizes_button.setFont(self._fonts.get_ui_font(10))
+        self.set_all_sizes_button.clicked.connect(self._on_set_all_window_sizes)
+        window_mgmt_layout.addWidget(self.set_all_sizes_button)
+        self._ui_elements.append(self.set_all_sizes_button)
+        
+        settings_layout.addWidget(window_mgmt_frame)
         settings_layout.addStretch()
         
         self.tabs.addTab(settings_tab, "⚙️ Settings")
@@ -412,6 +463,10 @@ class MainWindow(QMainWindow):
             path_key: Full path or pattern
             is_wildcard: Whether this is a wildcard pattern
         """
+        # Get current UI font size from settings
+        font_sizes = self._settings.get_font_sizes()
+        ui_size = font_sizes.get("ui_elements", 10)
+        
         # Create list item
         item = QListWidgetItem(self.log_list)
         
@@ -427,13 +482,13 @@ class MainWindow(QMainWindow):
             display_name = Path(path_key).name
         
         name_label = QLabel(display_name)
-        name_label.setFont(self._fonts.get_ui_font(10))
+        name_label.setFont(self._fonts.get_ui_font(ui_size))
         name_label.setToolTip(path_key)  # Show full path on hover
         layout.addWidget(name_label)
         
         # Group selector
         group_combo = QComboBox()
-        group_combo.setFont(self._fonts.get_ui_font(9))
+        group_combo.setFont(self._fonts.get_ui_font(ui_size))
         group_combo.setMaximumWidth(120)
         group_combo.addItem("(no group)")
         for group_name in self._available_groups:
@@ -450,7 +505,7 @@ class MainWindow(QMainWindow):
         
         # Add to group button
         add_to_group_btn = QPushButton("→")
-        add_to_group_btn.setFont(self._fonts.get_ui_font(9))
+        add_to_group_btn.setFont(self._fonts.get_ui_font(ui_size))
         add_to_group_btn.setToolTip("Add to selected group")
         add_to_group_btn.setMaximumWidth(30)
         add_to_group_btn.clicked.connect(lambda: self._on_assign_to_group(path_key, group_combo.currentText()))
@@ -460,7 +515,7 @@ class MainWindow(QMainWindow):
         
         # Refresh button
         refresh_btn = QPushButton("🔄")
-        refresh_btn.setFont(self._fonts.get_ui_font(9))
+        refresh_btn.setFont(self._fonts.get_ui_font(ui_size))
         refresh_btn.setToolTip("Refresh log (clear and restart)")
         refresh_btn.setMaximumWidth(30)
         refresh_btn.clicked.connect(lambda: self._on_refresh_log(path_key))
@@ -468,7 +523,7 @@ class MainWindow(QMainWindow):
         
         # Unregister/Close button
         close_btn = QPushButton("✖")
-        close_btn.setFont(self._fonts.get_ui_font(9))
+        close_btn.setFont(self._fonts.get_ui_font(ui_size))
         close_btn.setToolTip("Unregister and close log")
         close_btn.setMaximumWidth(30)
         close_btn.clicked.connect(lambda: self._on_unregister_log(path_key))
@@ -633,6 +688,10 @@ class MainWindow(QMainWindow):
         Args:
             group_name: Name of the group
         """
+        # Get current UI font size from settings
+        font_sizes = self._settings.get_font_sizes()
+        ui_size = font_sizes.get("ui_elements", 10)
+        
         item = QListWidgetItem(self.groups_list)
         
         widget = QWidget()
@@ -640,21 +699,21 @@ class MainWindow(QMainWindow):
         layout.setContentsMargins(5, 2, 5, 2)
         
         name_label = QLabel(f"📁 {group_name}")
-        name_label.setFont(self._fonts.get_ui_font(10, bold=True))
+        name_label.setFont(self._fonts.get_ui_font(ui_size, bold=True))
         layout.addWidget(name_label)
         
         layout.addStretch()
         
         # Show/Hide button
         show_btn = QPushButton("Show")
-        show_btn.setFont(self._fonts.get_ui_font(9))
+        show_btn.setFont(self._fonts.get_ui_font(ui_size))
         show_btn.setMaximumWidth(50)
         show_btn.clicked.connect(lambda: self._on_show_group(group_name))
         layout.addWidget(show_btn)
         
         # Remove button
         remove_btn = QPushButton("✖")
-        remove_btn.setFont(self._fonts.get_ui_font(9))
+        remove_btn.setFont(self._fonts.get_ui_font(ui_size))
         remove_btn.setToolTip("Remove group")
         remove_btn.setMaximumWidth(30)
         remove_btn.clicked.connect(lambda: self._on_remove_group(group_name))
@@ -814,6 +873,20 @@ class MainWindow(QMainWindow):
         for path_key in items_data:
             is_wildcard = '*' in path_key or '?' in path_key
             self._add_log_to_list(path_key, is_wildcard)
+    
+    def _refresh_all_group_items(self) -> None:
+        """Refresh all group list items to update fonts."""
+        # Store current items
+        items_data = []
+        for i in range(self.groups_list.count()):
+            item = self.groups_list.item(i)
+            group_name = item.data(Qt.ItemDataRole.UserRole)
+            items_data.append(group_name)
+        
+        # Clear and recreate
+        self.groups_list.clear()
+        for group_name in items_data:
+            self._add_group_to_list(group_name)
     
     def _on_assign_to_group(self, path_key: str, group_selection: str) -> None:
         """Handle assigning a log to a group.
@@ -1490,9 +1563,20 @@ class MainWindow(QMainWindow):
         Args:
             event: Close event
         """
-        # Stop all watchers
-        for watcher in self._watchers.values():
+        logger.info("Main window closing, stopping all watchers...")
+        
+        # Stop all watchers and wait for threads to finish
+        for path_key, watcher in self._watchers.items():
+            logger.debug(f"Stopping watcher for: {path_key}")
             watcher.stop()
+        
+        # Wait for all threads to finish (with timeout)
+        for path_key, watcher in self._watchers.items():
+            logger.debug(f"Waiting for watcher thread to finish: {path_key}")
+            if not watcher.wait(2000):  # Wait up to 2 seconds
+                logger.warning(f"Watcher thread did not finish in time: {path_key}")
+            else:
+                logger.debug(f"Watcher thread finished: {path_key}")
             
         # Close all viewer windows
         for viewer in list(self._viewer_windows.values()):
@@ -1501,7 +1585,8 @@ class MainWindow(QMainWindow):
         # Close all group windows
         for group_window in list(self._group_windows.values()):
             group_window.close()
-            
+        
+        logger.info("Main window cleanup complete")
         event.accept()
     
     # Session Management
@@ -1736,6 +1821,9 @@ class MainWindow(QMainWindow):
         self._settings.set_font_size("ui_elements", size)
         logger.info(f"UI elements font size changed to {size}")
         
+        # Update main window UI elements
+        self._update_main_window_fonts(size)
+        
         # Update all open log viewer windows
         for viewer in self._viewer_windows.values():
             viewer.set_ui_font_size(size)
@@ -1743,6 +1831,33 @@ class MainWindow(QMainWindow):
         # Update all group windows
         for group_window in self._group_windows.values():
             group_window.set_ui_font_size(size)
+    
+    def _update_main_window_fonts(self, size: int) -> None:
+        """Update all main window UI element fonts.
+        
+        Args:
+            size: New font size
+        """
+        # Update stored UI elements
+        for widget in self._ui_elements:
+            if isinstance(widget, QPushButton):
+                # Check if button should be bold
+                is_bold = widget in [self.add_button, self.session_label, self.save_session_button]
+                widget.setFont(self._fonts.get_ui_font(size, bold=is_bold))
+            elif isinstance(widget, QLabel):
+                # Check if label should be bold or larger
+                if widget in [self.session_label, self.logs_label, self.groups_label]:
+                    widget.setFont(self._fonts.get_ui_font(size + 1, bold=True))
+                elif widget == self.font_sizes_title:
+                    widget.setFont(self._fonts.get_ui_font(size + 2, bold=True))
+                else:
+                    widget.setFont(self._fonts.get_ui_font(size))
+            else:
+                widget.setFont(self._fonts.get_ui_font(size))
+        
+        # Refresh list items to update their fonts
+        self._refresh_all_log_items()
+        self._refresh_all_group_items()
     
     def _on_status_font_size_changed(self, size: int) -> None:
         """Handle status bar font size change."""

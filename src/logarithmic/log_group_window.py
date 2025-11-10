@@ -22,6 +22,7 @@ from PySide6.QtWidgets import QTabWidget
 from PySide6.QtWidgets import QVBoxLayout
 from PySide6.QtWidgets import QWidget
 
+from logarithmic.content_controller import ContentController
 from logarithmic.fonts import get_font_manager
 from logarithmic.log_highlighter import LogHighlighter
 
@@ -60,12 +61,11 @@ class LogGroupWindow(QWidget):
         # Track log files in this group
         self._log_paths: list[str] = []
         
-        # Tab widgets for tabbed mode (path -> dict with 'text_edit', 'status_bar', 'pause_btn', 'go_live_btn', 'is_live', 'is_paused')
+        # Tab widgets for tabbed mode (path -> dict with 'controller')
         self._tab_widgets: dict[str, dict] = {}
         
-        # Combined mode widget and controls
-        self._combined_widget: QPlainTextEdit | None = None
-        self._combined_controls: dict = {}  # Store combined mode controls
+        # Combined mode controller
+        self._combined_controller: ContentController | None = None
         self._combined_line_count: int = 0  # Separate line count for combined view only
         
         # Line counts per log (for tabbed mode)
@@ -166,101 +166,34 @@ class LogGroupWindow(QWidget):
         Args:
             path: Log file path
         """
-        # Create tab container
-        tab_container = QWidget()
-        tab_layout = QVBoxLayout(tab_container)
-        tab_layout.setContentsMargins(0, 0, 0, 0)
+        # Create content controller
+        filename = Path(path).name
+        controller = ContentController(
+            self._fonts,
+            filename,
+            show_filename_in_status=True,
+            theme_colors=self._theme_colors
+        )
         
-        # Controls
-        controls_layout = QHBoxLayout()
-        
-        # Go Live button (hidden by default)
-        go_live_btn = QPushButton("Go Live")
-        go_live_btn.setFont(self._fonts.get_ui_font(10, bold=True))
-        go_live_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                font-weight: bold;
-                padding: 5px 15px;
-                border-radius: 3px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-        """)
-        go_live_btn.hide()
-        controls_layout.addWidget(go_live_btn)
-        
-        # Pause button
-        pause_btn = QPushButton("Pause")
-        pause_btn.setFont(self._fonts.get_ui_font(10))
-        pause_btn.setCheckable(True)
-        controls_layout.addWidget(pause_btn)
-        
-        # Clear button
-        clear_btn = QPushButton("Clear")
-        clear_btn.setFont(self._fonts.get_ui_font(10))
-        clear_btn.clicked.connect(lambda: self._on_tab_clear(path))
-        controls_layout.addWidget(clear_btn)
-        
-        controls_layout.addStretch()
-        tab_layout.addLayout(controls_layout)
-        
-        # Text edit
-        text_edit = QPlainTextEdit()
-        text_edit.setReadOnly(True)
-        text_edit.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
-        text_edit.setFont(self._fonts.get_mono_font(9))
-        
-        # Create syntax highlighter
-        highlighter = LogHighlighter(text_edit.document(), self._theme_colors)
-        
-        # Connect scroll detection
-        scrollbar = text_edit.verticalScrollBar()
-        scrollbar.valueChanged.connect(lambda: self._on_tab_scroll_changed(path))
-        
-        tab_layout.addWidget(text_edit)
-        
-        # Status bar
-        status_bar = QLabel()
-        status_bar.setFont(self._fonts.get_ui_font(10))
-        status_bar.setStyleSheet("""
-            QLabel {
-                background-color: #2b2b2b;
-                color: #cccccc;
-                padding: 5px;
-                border-top: 1px solid #555555;
-            }
-        """)
-        tab_layout.addWidget(status_bar)
+        # Create the widget
+        widget = controller.create_widget()
         
         # Add tab
-        filename = Path(path).name
-        self.tab_widget.addTab(tab_container, filename)
+        self.tab_widget.addTab(widget, filename)
         
-        # Store widgets
+        # Store controller
         self._tab_widgets[path] = {
-            'text_edit': text_edit,
-            'status_bar': status_bar,
-            'pause_btn': pause_btn,
-            'clear_btn': clear_btn,
-            'go_live_btn': go_live_btn,
-            'highlighter': highlighter,
-            'is_live': True,
-            'is_paused': False
+            'controller': controller
         }
-        
-        # Connect button handlers
-        go_live_btn.clicked.connect(lambda: self._on_tab_go_live(path))
-        pause_btn.toggled.connect(lambda checked: self._on_tab_pause(path, checked))
         
         # Restore buffered content if exists
         if path in self._log_buffers:
-            text_edit.setPlainText(self._log_buffers[path])
-            text_edit.moveCursor(QTextCursor.MoveOperation.End)
+            controller.set_text(self._log_buffers[path])
+            self._line_counts[path] = self._log_buffers[path].count('\n')
+        else:
+            self._line_counts[path] = 0
         
-        self._update_tab_status(path)
+        logger.info(f"Added tab for {path}")
     
     def _on_mode_toggle(self) -> None:
         """Toggle between tabbed and combined mode."""
@@ -279,67 +212,24 @@ class LogGroupWindow(QWidget):
         
         # Save current tab content to buffers
         for path, widgets in self._tab_widgets.items():
-            self._log_buffers[path] = widgets['text_edit'].toPlainText()
+            controller = widgets['controller']
+            self._log_buffers[path] = controller.get_text()
         
         # Clear tabs
         self.tab_widget.clear()
         self._tab_widgets.clear()
         
-        # Create combined view container
-        combined_container = QWidget()
-        combined_layout = QVBoxLayout(combined_container)
-        combined_layout.setContentsMargins(0, 0, 0, 0)
+        # Create content controller for combined view with prefix_lines enabled
+        self._combined_controller = ContentController(
+            self._fonts,
+            "Combined View",
+            show_filename_in_status=False,
+            theme_colors=self._theme_colors,
+            prefix_lines=True  # Enable line prefixing for combined mode
+        )
         
-        # Controls for combined mode
-        controls_layout = QHBoxLayout()
-        
-        # Go Live button (hidden by default)
-        go_live_btn = QPushButton("Go Live")
-        go_live_btn.setFont(self._fonts.get_ui_font(10, bold=True))
-        go_live_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #4CAF50;
-                color: white;
-                font-weight: bold;
-                padding: 5px 15px;
-                border-radius: 3px;
-            }
-            QPushButton:hover {
-                background-color: #45a049;
-            }
-        """)
-        go_live_btn.hide()
-        go_live_btn.clicked.connect(self._on_combined_go_live)
-        controls_layout.addWidget(go_live_btn)
-        
-        # Pause button
-        pause_btn = QPushButton("Pause")
-        pause_btn.setFont(self._fonts.get_ui_font(10))
-        pause_btn.setCheckable(True)
-        pause_btn.toggled.connect(self._on_combined_pause)
-        controls_layout.addWidget(pause_btn)
-        
-        # Clear button
-        clear_btn = QPushButton("Clear")
-        clear_btn.setFont(self._fonts.get_ui_font(10))
-        clear_btn.clicked.connect(self._on_combined_clear)
-        controls_layout.addWidget(clear_btn)
-        
-        controls_layout.addStretch()
-        combined_layout.addLayout(controls_layout)
-        
-        # Create combined text view
-        self._combined_widget = QPlainTextEdit()
-        self._combined_widget.setReadOnly(True)
-        self._combined_widget.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
-        self._combined_widget.setFont(self._fonts.get_mono_font(9))
-        
-        # Create syntax highlighter
-        combined_highlighter = LogHighlighter(self._combined_widget.document(), self._theme_colors)
-        
-        # Connect scroll detection
-        scrollbar = self._combined_widget.verticalScrollBar()
-        scrollbar.valueChanged.connect(self._on_combined_scroll_changed)
+        # Create the widget
+        widget = self._combined_controller.create_widget()
         
         # Add warning message
         warning = (
@@ -349,37 +239,10 @@ class LogGroupWindow(QWidget):
             "║  Switch back to Tabbed Mode to see full history.\n"
             "═" * 80 + "\n\n"
         )
-        self._combined_widget.setPlainText(warning)
+        self._combined_controller.set_text(warning)
         
-        combined_layout.addWidget(self._combined_widget)
-        
-        # Status bar
-        status_bar = QLabel()
-        status_bar.setFont(self._fonts.get_ui_font(10))
-        status_bar.setStyleSheet("""
-            QLabel {
-                background-color: #2b2b2b;
-                color: #cccccc;
-                padding: 5px;
-                border-top: 1px solid #555555;
-            }
-        """)
-        combined_layout.addWidget(status_bar)
-        
-        # Store controls
-        self._combined_controls = {
-            'go_live_btn': go_live_btn,
-            'pause_btn': pause_btn,
-            'clear_btn': clear_btn,
-            'status_bar': status_bar,
-            'highlighter': combined_highlighter,
-            'is_live': True,
-            'is_paused': False
-        }
-        
-        self.tab_widget.addTab(combined_container, "Combined View")
-        
-        self._update_combined_status()
+        # Add tab
+        self.tab_widget.addTab(widget, "Combined View")
 
         logger.info(f"Switched group {self.group_name} to combined mode")
         self._update_status()
@@ -391,8 +254,7 @@ class LogGroupWindow(QWidget):
         
         # Clear combined view
         self.tab_widget.clear()
-        self._combined_widget = None
-        self._combined_controls.clear()
+        self._combined_controller = None
         
         # Recreate tabs (will restore buffered content)
         for path in self._log_paths:
@@ -419,42 +281,20 @@ class LogGroupWindow(QWidget):
         self._log_buffers[path] += content
         
         if self._mode == "tabbed":
-            # Append to specific tab
+            # Append to specific tab using controller
             if path in self._tab_widgets:
-                tab_data = self._tab_widgets[path]
-                if not tab_data['is_paused']:
-                    text_edit = tab_data['text_edit']
-                    cursor = text_edit.textCursor()
-                    cursor.movePosition(QTextCursor.MoveOperation.End)
-                    cursor.insertText(content)
-                    text_edit.setTextCursor(cursor)
-                    
-                    if tab_data['is_live']:
-                        text_edit.moveCursor(QTextCursor.MoveOperation.End)
-                
-                self._update_tab_status(path)
+                controller = self._tab_widgets[path]['controller']
+                if not controller.is_paused():
+                    controller.append_text(content)
         else:
-            # Append to combined view with live/pause mode support
-            if self._combined_widget and self._combined_controls:
-                if not self._combined_controls['is_paused']:
+            # Append to combined view with source prefix
+            if self._combined_controller:
+                if not self._combined_controller.is_paused():
                     filename = Path(path).name
-                    # Prefix each line with the log filename
-                    lines = content.split('\n')
-                    prefixed_lines = [f"[{filename}] {line}" if line else "" for line in lines]
-                    prefixed_content = '\n'.join(prefixed_lines)
-                    
                     # Update combined view line count
                     self._combined_line_count += content.count('\n')
-                    
-                    cursor = self._combined_widget.textCursor()
-                    cursor.movePosition(QTextCursor.MoveOperation.End)
-                    cursor.insertText(prefixed_content)
-                    self._combined_widget.setTextCursor(cursor)
-                    
-                    if self._combined_controls['is_live']:
-                        self._combined_widget.moveCursor(QTextCursor.MoveOperation.End)
-                
-                self._update_combined_status()
+                    # ContentController will handle prefixing with source
+                    self._combined_controller.append_text(content, source=filename)
         
         self._update_status()
     
@@ -817,16 +657,14 @@ class LogGroupWindow(QWidget):
         Args:
             size: Font size in points
         """
-        font = self._fonts.get_mono_font(size)
-        
-        # Update tabbed mode widgets
+        # Update tabbed mode controllers
         for widgets in self._tab_widgets.values():
-            if 'text_edit' in widgets:
-                widgets['text_edit'].setFont(font)
+            controller = widgets['controller']
+            controller.set_log_font_size(size)
         
-        # Update combined mode widget
-        if self._combined_widget:
-            self._combined_widget.setFont(font)
+        # Update combined mode controller
+        if self._combined_controller:
+            self._combined_controller.set_log_font_size(size)
     
     def set_ui_font_size(self, size: int) -> None:
         """Set UI elements font size for all tabs.
@@ -834,23 +672,14 @@ class LogGroupWindow(QWidget):
         Args:
             size: Font size in points
         """
-        font = self._fonts.get_ui_font(size)
-        font_bold = self._fonts.get_ui_font(size, bold=True)
-        
-        # Update tabbed mode widgets
+        # Update tabbed mode controllers
         for widgets in self._tab_widgets.values():
-            if 'pause_btn' in widgets:
-                widgets['pause_btn'].setFont(font)
-            if 'clear_btn' in widgets:
-                widgets['clear_btn'].setFont(font)
-            if 'go_live_btn' in widgets:
-                widgets['go_live_btn'].setFont(font_bold)
+            controller = widgets['controller']
+            controller.set_ui_font_size(size)
         
-        # Update combined mode controls
-        if self._combined_controls:
-            self._combined_controls['pause_btn'].setFont(font)
-            self._combined_controls['clear_btn'].setFont(font)
-            self._combined_controls['go_live_btn'].setFont(font_bold)
+        # Update combined mode controller
+        if self._combined_controller:
+            self._combined_controller.set_ui_font_size(size)
     
     def set_status_font_size(self, size: int) -> None:
         """Set status bar font size for all tabs.
@@ -858,33 +687,31 @@ class LogGroupWindow(QWidget):
         Args:
             size: Font size in points
         """
-        font = self._fonts.get_ui_font(size)
-        
-        # Update tabbed mode widgets
+        # Update tabbed mode controllers
         for widgets in self._tab_widgets.values():
-            if 'status_bar' in widgets:
-                widgets['status_bar'].setFont(font)
+            controller = widgets['controller']
+            controller.set_status_font_size(size)
         
-        # Update combined mode status bar
-        if self._combined_controls:
-            self._combined_controls['status_bar'].setFont(font)
+        # Update combined mode controller
+        if self._combined_controller:
+            self._combined_controller.set_status_font_size(size)
     
     def update_theme(self, theme_colors: dict) -> None:
-        """Update theme colors for all highlighters.
+        """Update theme colors for all controllers.
         
         Args:
             theme_colors: New theme color dictionary
         """
         self._theme_colors = theme_colors
         
-        # Update tabbed mode highlighters
+        # Update tabbed mode controllers
         for widgets in self._tab_widgets.values():
-            if 'highlighter' in widgets:
-                widgets['highlighter'].update_theme(theme_colors)
+            controller = widgets['controller']
+            controller.update_theme(theme_colors)
         
-        # Update combined mode highlighter
-        if self._combined_controls and 'highlighter' in self._combined_controls:
-            self._combined_controls['highlighter'].update_theme(theme_colors)
+        # Update combined mode controller
+        if self._combined_controller:
+            self._combined_controller.update_theme(theme_colors)
     
     def closeEvent(self, event: QCloseEvent) -> None:
         """Handle window close event.
@@ -892,12 +719,5 @@ class LogGroupWindow(QWidget):
         Args:
             event: Close event
         """
-        # Clean up highlighters to prevent crashes
-        for widgets in self._tab_widgets.values():
-            if 'highlighter' in widgets:
-                widgets['highlighter'].setDocument(None)
-        
-        if self._combined_controls and 'highlighter' in self._combined_controls:
-            self._combined_controls['highlighter'].setDocument(None)
-        
+        # ContentController handles cleanup automatically
         event.accept()

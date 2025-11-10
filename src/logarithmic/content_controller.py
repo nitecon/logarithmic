@@ -35,7 +35,8 @@ class ContentController:
         fonts: FontManager,
         identifier: str,
         show_filename_in_status: bool = True,
-        theme_colors: dict | None = None
+        theme_colors: dict | None = None,
+        prefix_lines: bool = False
     ):
         """Initialize content controller.
         
@@ -44,11 +45,13 @@ class ContentController:
             identifier: Identifier for this content (filename or group name)
             show_filename_in_status: Whether to show filename in status bar
             theme_colors: Theme color settings
+            prefix_lines: Whether to prefix each line with identifier (for combined mode)
         """
         self._fonts = fonts
         self._identifier = identifier
         self._show_filename = show_filename_in_status
         self._theme_colors = theme_colors or {}
+        self._prefix_lines = prefix_lines
         
         # State
         self._is_live = True
@@ -146,27 +149,36 @@ class ContentController:
         self._update_status()
         return self._container
     
-    def append_text(self, content: str) -> None:
+    def append_text(self, content: str, source: str | None = None) -> None:
         """Append text to the content view.
         
         Args:
-            content: Text content to append
+            content: Text to append
+            source: Optional source identifier for prefixing (used in combined mode)
         """
-        if not self._text_edit or self._is_paused:
+        if not self._text_edit or not content:
             return
         
-        # Count lines
-        self._line_count += content.count('\n')
+        # Prefix lines if needed (for combined mode)
+        if source and self._prefix_lines:
+            lines = content.split('\n')
+            prefixed_lines = [f"[{source}] {line}" if line else line for line in lines]
+            content = '\n'.join(prefixed_lines)
+        
+        # Count new lines
+        new_lines = content.count('\n')
+        self._line_count += new_lines
         
         # Append content
         cursor = self._text_edit.textCursor()
         cursor.movePosition(QTextCursor.MoveOperation.End)
         cursor.insertText(content)
-        self._text_edit.setTextCursor(cursor)
         
         # Auto-scroll if in live mode
         if self._is_live:
-            self._text_edit.moveCursor(QTextCursor.MoveOperation.End)
+            self._text_edit.verticalScrollBar().setValue(
+                self._text_edit.verticalScrollBar().maximum()
+            )
         
         self._update_status()
     

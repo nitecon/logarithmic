@@ -142,6 +142,13 @@ No installation required - just download, extract, and run!
    pip install -e ".[dev]"
    ```
 
+6. **Set up pre-commit hooks** (recommended)
+   ```bash
+   pre-commit install
+   ```
+   
+   This will automatically run `ruff format` and `ruff --fix` on your code before each commit, ensuring consistent code style.
+
 ## Running the Application
 
 ```bash

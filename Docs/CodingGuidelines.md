@@ -45,7 +45,8 @@ This document provides a set of general coding standards and best practices for 
 * **Logging**: Use Python's built-in `logging` module. Get loggers with `logging.getLogger(__name__)`.
 * **Data Models**: Use `pydantic` models for all data structures, API payloads, and message formats. This provides runtime validation.
 * **Testing**: Use `pytest` for all tests. Use `pytest-mock` for mocking and `pytest.mark.parametrize` for table-driven tests.
-* **Formatting**: Use `black` for code formatting and `ruff` for linting and import sorting. This is non-negotiable and enforced by CI.
+* **Formatting**: Use `ruff format` for code formatting and `ruff` for linting and import sorting. This is non-negotiable and enforced by CI.
+* **Pre-commit Hooks**: Install pre-commit hooks with `pre-commit install` to automatically format and lint code before each commit.
 * **Type Hinting**: All new code **must** include type hints for function arguments and return values.
 * **Type Checking**: All code **must** pass static type checking with `mypy`. This is enforced by CI.
 
@@ -270,13 +271,13 @@ repos:
     -   id: check-toml
 
 -   repo: [https://github.com/astral-sh/ruff-pre-commit](https://github.com/astral-sh/ruff-pre-commit)
-    rev: v0.1.6
+    rev: v0.8.4
     hooks:
-    # Run formatter
-    -   id: ruff-format
-    # Run linter
+    # Run linter first with auto-fix
     -   id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
+        args: [--fix]
+    # Run formatter after linting
+    -   id: ruff-format
 
 -   repo: [https://github.com/pre-commit/mirrors-mypy](https://github.com/pre-commit/mirrors-mypy)
     rev: v1.7.0

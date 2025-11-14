@@ -55,7 +55,7 @@ class LogViewerWindow(QWidget):
             self._fonts,
             filename,
             show_filename_in_status=True,
-            theme_colors=self._theme_colors
+            theme_colors=self._theme_colors,
         )
 
         self._setup_ui()
@@ -77,7 +77,9 @@ class LogViewerWindow(QWidget):
         # Set Default Size button
         set_size_button = QPushButton("Set Default Size")
         set_size_button.setFont(self._fonts.get_ui_font(10))
-        set_size_button.setToolTip("Set the current window size as the default for all new log windows")
+        set_size_button.setToolTip(
+            "Set the current window size as the default for all new log windows"
+        )
         set_size_button.clicked.connect(self._on_set_default_size_clicked)
         controls_layout.addWidget(set_size_button)
 
@@ -146,7 +148,9 @@ class LogViewerWindow(QWidget):
             self._set_default_size_callback(width, height)
             logger.info(f"Set default size to {width}x{height}")
 
-    def set_position_changed_callback(self, callback: Callable[[int, int, int, int], None]) -> None:
+    def set_position_changed_callback(
+        self, callback: Callable[[int, int, int, int], None]
+    ) -> None:
         """Set callback for when window position/size changes.
 
         Args:
@@ -301,7 +305,7 @@ class LogViewerWindow(QWidget):
                 parts = reason.split("Initial file:")
                 if len(parts) == 2:
                     new_filename = parts[1].strip()
-                    if '\\' in new_filename or '/' in new_filename:
+                    if "\\" in new_filename or "/" in new_filename:
                         self._current_file_name = Path(new_filename).name
                     else:
                         self._current_file_name = new_filename
@@ -326,7 +330,9 @@ class LogViewerWindow(QWidget):
                     new_file = reason.split("Switched to file:")[1].strip()
                     self._current_file_name = new_file
                     self._restart_count += 1
-                    logger.info(f"Updated current file to: {new_file}, restart count: {self._restart_count}")
+                    logger.info(
+                        f"Updated current file to: {new_file}, restart count: {self._restart_count}"
+                    )
                 except Exception as e:
                     logger.error(f"Failed to extract filename from reason: {e}")
 
@@ -335,20 +341,15 @@ class LogViewerWindow(QWidget):
     def on_stream_resumed(self, path: str) -> None:
         """Called when the log stream resumes.
 
-            path: Log file path
+        path: Log file path
         """
         if path == self._path_str:
             separator = (
-                "\n"
-                "═" * 70 + "\n"
-                "║  Stream Resumed - File Recreated\n"
-                "═" * 70 + "\n"
-                "\n"
+                "\n═" * 70 + "\n║  Stream Resumed - File Recreated\n═" * 70 + "\n\n"
             )
             current_text = self._content_controller.get_text()
             self._content_controller.set_text(current_text + separator)
             logger.info(f"Displayed stream resumption for {path}")
-
 
     def flash_window(self) -> None:
         """Flash the window to get user's attention."""
@@ -360,6 +361,7 @@ class LogViewerWindow(QWidget):
 
         # Restore after 500ms
         from PySide6.QtCore import QTimer
+
         QTimer.singleShot(500, lambda: self.setWindowTitle(original_title))
 
         logger.info(f"Flashed window for {self._path_str}")

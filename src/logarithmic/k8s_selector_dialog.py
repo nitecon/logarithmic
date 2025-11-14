@@ -22,6 +22,7 @@ try:
     from kubernetes import client
     from kubernetes import config
     from kubernetes.client.rest import ApiException
+
     KUBERNETES_AVAILABLE = True
 except ImportError:
     KUBERNETES_AVAILABLE = False
@@ -52,7 +53,9 @@ class K8sSelectorDialog(QDialog):
         if KUBERNETES_AVAILABLE:
             self._load_namespaces()
         else:
-            self._show_error("Kubernetes library not installed. Install with: pip install kubernetes")
+            self._show_error(
+                "Kubernetes library not installed. Install with: pip install kubernetes"
+            )
 
     def _setup_ui(self) -> None:
         """Setup the UI."""
@@ -75,7 +78,9 @@ class K8sSelectorDialog(QDialog):
         self.app_radio.toggled.connect(self._on_mode_changed)
         mode_layout.addWidget(self.app_radio)
 
-        app_desc = QLabel("Track all pods matching app label (tail-only, follows kubectl logs -f -l app=name)")
+        app_desc = QLabel(
+            "Track all pods matching app label (tail-only, follows kubectl logs -f -l app=name)"
+        )
         app_desc.setStyleSheet("color: gray; margin-left: 20px;")
         app_desc.setWordWrap(True)
         mode_layout.addWidget(app_desc)
@@ -261,18 +266,24 @@ class K8sSelectorDialog(QDialog):
             # Collect unique app labels
             app_labels = set()
             for pod in pods.items:
-                if pod.metadata.labels and 'app' in pod.metadata.labels:
-                    app_labels.add(pod.metadata.labels['app'])
+                if pod.metadata.labels and "app" in pod.metadata.labels:
+                    app_labels.add(pod.metadata.labels["app"])
 
             if not app_labels:
-                self._show_info(f"No pods with 'app' label found in namespace '{namespace}'")
+                self._show_info(
+                    f"No pods with 'app' label found in namespace '{namespace}'"
+                )
                 return
 
             # Add app labels to list
             for app_label in sorted(app_labels):
                 # Count pods with this label
-                pod_count = sum(1 for pod in pods.items
-                               if pod.metadata.labels and pod.metadata.labels.get('app') == app_label)
+                pod_count = sum(
+                    1
+                    for pod in pods.items
+                    if pod.metadata.labels
+                    and pod.metadata.labels.get("app") == app_label
+                )
                 self.pod_list.addItem(f"🏷️ {app_label} ({pod_count} pods)")
 
             self._show_info(f"Loaded {len(app_labels)} app labels from '{namespace}'")
@@ -340,7 +351,7 @@ class K8sSelectorDialog(QDialog):
                 "pod",
                 self.selected_pod or "",
                 container if container else None,
-                None
+                None,
             )
         else:
             return (
@@ -348,5 +359,5 @@ class K8sSelectorDialog(QDialog):
                 "app",
                 self.app_label or "",
                 None,
-                self.app_label
+                self.app_label,
             )

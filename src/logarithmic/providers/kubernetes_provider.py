@@ -24,10 +24,13 @@ try:
     from kubernetes import config
     from kubernetes import watch
     from kubernetes.client.rest import ApiException
+
     KUBERNETES_AVAILABLE = True
 except ImportError:
     KUBERNETES_AVAILABLE = False
-    logger.warning("kubernetes library not installed. Install with: pip install kubernetes")
+    logger.warning(
+        "kubernetes library not installed. Install with: pip install kubernetes"
+    )
 
 
 class K8sLogStreamer(QThread):
@@ -44,7 +47,7 @@ class K8sLogStreamer(QThread):
         tail_lines: int,
         log_manager: "LogManager",
         path_key: str,
-        is_label_selector: bool = False
+        is_label_selector: bool = False,
     ) -> None:
         """Initialize K8s log streamer.
 
@@ -99,7 +102,9 @@ class K8sLogStreamer(QThread):
             self.error_occurred.emit(error_msg)
         finally:
             self._running = False
-            logger.info(f"K8s log stream stopped for {self._namespace}/{self._pod_name}")
+            logger.info(
+                f"K8s log stream stopped for {self._namespace}/{self._pod_name}"
+            )
 
     def _stream_single_pod_logs(self, v1: "client.CoreV1Api") -> None:
         """Stream logs from a single pod.
@@ -114,7 +119,7 @@ class K8sLogStreamer(QThread):
             "namespace": self._namespace,
             "follow": True,
             "tail_lines": self._tail_lines,
-            "_preload_content": False
+            "_preload_content": False,
         }
 
         if self._container:
@@ -161,7 +166,7 @@ class K8sLogStreamer(QThread):
                     "namespace": self._namespace,
                     "follow": True,
                     "tail_lines": self._tail_lines,
-                    "_preload_content": False
+                    "_preload_content": False,
                 }
 
                 for line in w.stream(v1.read_namespaced_pod_log, **kwargs):
@@ -200,27 +205,25 @@ class K8sLogStreamer(QThread):
                 v1.list_namespaced_pod,
                 namespace=self._namespace,
                 label_selector=self._pod_name,
-                timeout_seconds=0  # Watch indefinitely
+                timeout_seconds=0,  # Watch indefinitely
             ):
                 if not self._running:
                     break
 
-                event_type = event['type']
-                pod = event['object']
+                event_type = event["type"]
+                pod = event["object"]
                 pod_name = pod.metadata.name
                 pod_phase = pod.status.phase
 
                 logger.debug(f"Pod event: {event_type} - {pod_name} ({pod_phase})")
 
-                if event_type == 'ADDED' or event_type == 'MODIFIED':
+                if event_type == "ADDED" or event_type == "MODIFIED":
                     # Only stream from Running pods
-                    if pod_phase == 'Running' and pod_name not in active_threads:
+                    if pod_phase == "Running" and pod_name not in active_threads:
                         logger.info(f"New running pod detected: {pod_name}")
                         # Start streaming in a separate thread
                         thread = threading.Thread(
-                            target=stream_pod_logs,
-                            args=(pod_name,),
-                            daemon=True
+                            target=stream_pod_logs, args=(pod_name,), daemon=True
                         )
                         active_threads[pod_name] = thread
                         thread.start()
@@ -230,7 +233,7 @@ class K8sLogStreamer(QThread):
                         self._log_manager.publish_content(self._path_key, notification)
                         self.new_lines.emit(notification)
 
-                elif event_type == 'DELETED':
+                elif event_type == "DELETED":
                     if pod_name in active_threads:
                         logger.info(f"Pod deleted: {pod_name}")
                         # Thread will stop naturally when pod is gone
@@ -278,10 +281,7 @@ class KubernetesProvider(LogProvider):
     """
 
     def __init__(
-        self,
-        config: ProviderConfig,
-        log_manager: "LogManager",
-        path_key: str
+        self, config: ProviderConfig, log_manager: "LogManager", path_key: str
     ) -> None:
         """Initialize Kubernetes provider.
 
@@ -306,7 +306,9 @@ class KubernetesProvider(LogProvider):
     def start(self) -> None:
         """Start streaming pod logs."""
         if not KUBERNETES_AVAILABLE:
-            error_msg = "Kubernetes library not installed. Install with: pip install kubernetes"
+            error_msg = (
+                "Kubernetes library not installed. Install with: pip install kubernetes"
+            )
             logger.error(error_msg)
             self.error_occurred.emit(error_msg)
             return
@@ -327,10 +329,12 @@ class KubernetesProvider(LogProvider):
             tail_lines=tail_lines,
             log_manager=self._log_manager,
             path_key=self._path_key,
-            is_label_selector=self._is_deployment
+            is_label_selector=self._is_deployment,
         )
 
-        self._streamer.new_lines.connect(lambda text: None)  # Already published to log manager
+        self._streamer.new_lines.connect(
+            lambda text: None
+        )  # Already published to log manager
         self._streamer.error_occurred.connect(self._on_error)
         self._streamer.start()
 
@@ -341,7 +345,7 @@ class KubernetesProvider(LogProvider):
         """Stop streaming pod logs."""
         logger.info(f"Stopping KubernetesProvider for {self._path_key}")
 
-        if hasattr(self, '_streamer') and self._streamer:
+        if hasattr(self, "_streamer") and self._streamer:
             self._streamer.stop()
             self._streamer.wait(5000)  # Wait up to 5 seconds
 
@@ -350,14 +354,14 @@ class KubernetesProvider(LogProvider):
 
     def pause(self) -> None:
         """Pause log streaming."""
-        if hasattr(self, '_streamer') and self._streamer:
+        if hasattr(self, "_streamer") and self._streamer:
             self._streamer.pause()
         self._paused = True
         logger.debug(f"KubernetesProvider paused for {self._path_key}")
 
     def resume(self) -> None:
         """Resume log streaming."""
-        if hasattr(self, '_streamer') and self._streamer:
+        if hasattr(self, "_streamer") and self._streamer:
             self._streamer.resume()
         self._paused = False
         logger.debug(f"KubernetesProvider resumed for {self._path_key}")
@@ -417,7 +421,7 @@ class KubernetesProvider(LogProvider):
             supports_full_log=True,  # Can read full history if needed
             supports_tail=True,
             tail_line_limit=200,  # Reasonable limit for pod logs
-            description="Streams pod logs with optional history (last 200 lines recommended)"
+            description="Streams pod logs with optional history (last 200 lines recommended)",
         )
 
     def _on_error(self, error_message: str) -> None:
@@ -437,7 +441,7 @@ class KubernetesProvider(LogProvider):
         container: str | None = None,
         context: str | None = None,
         is_deployment: bool = False,
-        mode: ProviderMode = ProviderMode.TAIL_ONLY
+        mode: ProviderMode = ProviderMode.TAIL_ONLY,
     ) -> ProviderConfig:
         """Create a Kubernetes provider configuration.
 

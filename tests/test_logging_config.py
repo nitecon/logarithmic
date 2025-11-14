@@ -43,6 +43,7 @@ def test_json_formatter_with_exception() -> None:
         raise ValueError("Test error")
     except ValueError:
         import sys
+
         exc_info = sys.exc_info()
 
         record = logging.LogRecord(
@@ -71,6 +72,7 @@ def test_configure_logging_json(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Force config reload
     from logarithmic.config import reload_config
+
     reload_config()
 
     configure_logging()
@@ -92,6 +94,7 @@ def test_configure_logging_text(monkeypatch: pytest.MonkeyPatch) -> None:
 
     # Force config reload
     from logarithmic.config import reload_config
+
     reload_config()
 
     configure_logging()

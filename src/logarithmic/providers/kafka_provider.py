@@ -31,10 +31,7 @@ class KafkaProvider(LogProvider):
     """
 
     def __init__(
-        self,
-        config: ProviderConfig,
-        log_manager: "LogManager",
-        path_key: str
+        self, config: ProviderConfig, log_manager: "LogManager", path_key: str
     ) -> None:
         """Initialize Kafka provider.
 
@@ -51,7 +48,9 @@ class KafkaProvider(LogProvider):
         self._offset = config.get("offset", "latest")
 
         if not self._bootstrap_servers or not self._topic:
-            raise ValueError("KafkaProvider requires 'bootstrap_servers' and 'topic' in config")
+            raise ValueError(
+                "KafkaProvider requires 'bootstrap_servers' and 'topic' in config"
+            )
 
     def start(self) -> None:
         """Start consuming from Kafka topic."""
@@ -129,7 +128,7 @@ class KafkaProvider(LogProvider):
             supports_full_log=False,  # Kafka is stream-only
             supports_tail=True,
             tail_line_limit=200,
-            description="Streams messages from Kafka topic (tail-only, no full history)"
+            description="Streams messages from Kafka topic (tail-only, no full history)",
         )
 
     @classmethod
@@ -138,7 +137,7 @@ class KafkaProvider(LogProvider):
         bootstrap_servers: str,
         topic: str,
         group_id: str = "logarithmic-consumer",
-        offset: str = "latest"
+        offset: str = "latest",
     ) -> ProviderConfig:
         """Create a Kafka provider configuration.
 

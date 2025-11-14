@@ -75,7 +75,9 @@ class LogBuffer:
         lines = content.splitlines(keepends=True)
         self._lines.extend(lines)
         self._total_lines_received += len(lines)
-        logger.debug(f"Buffer now has {len(self._lines)} lines (total received: {self._total_lines_received})")
+        logger.debug(
+            f"Buffer now has {len(self._lines)} lines (total received: {self._total_lines_received})"
+        )
 
     def get_content(self) -> str:
         """Get the full buffered content.
@@ -281,7 +283,9 @@ class LogManager(QObject):
             buffer = self._buffers.get(path)
             if buffer is not None:
                 buffer.append(content)
-                logger.debug(f"Added {len(content)} chars to buffer for {path}, buffer now has {len(buffer)} lines")
+                logger.debug(
+                    f"Added {len(content)} chars to buffer for {path}, buffer now has {len(buffer)} lines"
+                )
             else:
                 logger.error("No buffer found for path")
                 logger.error(f"Incoming: {repr(path)}")
@@ -295,7 +299,9 @@ class LogManager(QObject):
                     logger.error("Dict is empty!")
 
             # Notify subscribers
-            subscribers = self._subscribers.get(path, []).copy()  # Copy to avoid modification during iteration
+            subscribers = self._subscribers.get(
+                path, []
+            ).copy()  # Copy to avoid modification during iteration
 
         logger.debug(f"Notifying {len(subscribers)} subscribers for {path}")
         for subscriber in subscribers:

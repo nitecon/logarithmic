@@ -1,6 +1,5 @@
 """Tests for the provider registry."""
 
-
 from logarithmic.providers.base import ProviderType
 from logarithmic.providers.registry import ProviderRegistry
 

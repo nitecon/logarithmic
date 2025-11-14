@@ -25,7 +25,9 @@ class LogarithmicMcpServer:
     (like Claude Desktop or other AI agents).
     """
 
-    def __init__(self, bridge: McpBridge, host: str = "127.0.0.1", port: int = 3000) -> None:
+    def __init__(
+        self, bridge: McpBridge, host: str = "127.0.0.1", port: int = 3000
+    ) -> None:
         """Initialize the MCP server.
 
         Args:
@@ -56,9 +58,9 @@ class LogarithmicMcpServer:
                 resources.append(
                     Resource(
                         uri=f"log://{log_info['id']}",
-                        name=log_info['description'],
+                        name=log_info["description"],
                         mimeType="text/plain",
-                        description=f"Log content from {log_info['description']}"
+                        description=f"Log content from {log_info['description']}",
                     )
                 )
 
@@ -85,7 +87,7 @@ class LogarithmicMcpServer:
                 raise ValueError(f"Log not found: {log_id}")
 
             logger.debug(f"Read resource: {uri} ({len(log_info['content'])} chars)")
-            return log_info['content']
+            return log_info["content"]
 
         @self._server.list_tools()
         async def list_tools() -> list[Tool]:
@@ -99,19 +101,16 @@ class LogarithmicMcpServer:
                         "properties": {
                             "log_id": {
                                 "type": "string",
-                                "description": "The ID of the log to retrieve"
+                                "description": "The ID of the log to retrieve",
                             }
                         },
-                        "required": ["log_id"]
-                    }
+                        "required": ["log_id"],
+                    },
                 ),
                 Tool(
                     name="list_logs",
                     description="List all available logs with their IDs and descriptions",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {}
-                    }
+                    inputSchema={"type": "object", "properties": {}},
                 ),
                 Tool(
                     name="search_logs",
@@ -121,17 +120,17 @@ class LogarithmicMcpServer:
                         "properties": {
                             "pattern": {
                                 "type": "string",
-                                "description": "The pattern to search for"
+                                "description": "The pattern to search for",
                             },
                             "case_sensitive": {
                                 "type": "boolean",
                                 "description": "Whether the search should be case sensitive",
-                                "default": False
-                            }
+                                "default": False,
+                            },
                         },
-                        "required": ["pattern"]
-                    }
-                )
+                        "required": ["pattern"],
+                    },
+                ),
             ]
 
         @self._server.call_tool()
@@ -152,17 +151,27 @@ class LogarithmicMcpServer:
 
                 log_info = self._bridge.get_log_info(log_id)
                 if log_info is None:
-                    return [TextContent(type="text", text=f"Error: Log '{log_id}' not found")]
+                    return [
+                        TextContent(
+                            type="text", text=f"Error: Log '{log_id}' not found"
+                        )
+                    ]
 
-                return [TextContent(
-                    type="text",
-                    text=f"Log: {log_info['description']}\n\n{log_info['content']}"
-                )]
+                return [
+                    TextContent(
+                        type="text",
+                        text=f"Log: {log_info['description']}\n\n{log_info['content']}",
+                    )
+                ]
 
             elif name == "list_logs":
                 logs = self._bridge.get_all_logs()
                 if not logs:
-                    return [TextContent(type="text", text="No logs are currently being tracked.")]
+                    return [
+                        TextContent(
+                            type="text", text="No logs are currently being tracked."
+                        )
+                    ]
 
                 result = "Available logs:\n\n"
                 for _path_key, log_info in logs.items():
@@ -184,13 +193,13 @@ class LogarithmicMcpServer:
                 results = []
 
                 for _path_key, log_info in logs.items():
-                    content = log_info['content']
+                    content = log_info["content"]
                     search_content = content if case_sensitive else content.lower()
                     search_pattern = pattern if case_sensitive else pattern.lower()
 
                     if search_pattern in search_content:
                         # Find matching lines
-                        lines = content.split('\n')
+                        lines = content.split("\n")
                         matching_lines = []
                         for i, line in enumerate(lines, 1):
                             check_line = line if case_sensitive else line.lower()
@@ -199,15 +208,23 @@ class LogarithmicMcpServer:
 
                         if matching_lines:
                             results.append(
-                                f"Log: {log_info['description']}\n" +
-                                f"Matches found: {len(matching_lines)}\n" +
-                                "\n".join(matching_lines[:10])  # Limit to first 10 matches
+                                f"Log: {log_info['description']}\n"
+                                + f"Matches found: {len(matching_lines)}\n"
+                                + "\n".join(
+                                    matching_lines[:10]
+                                )  # Limit to first 10 matches
                             )
 
                 if not results:
-                    return [TextContent(type="text", text=f"No matches found for pattern: {pattern}")]
+                    return [
+                        TextContent(
+                            type="text", text=f"No matches found for pattern: {pattern}"
+                        )
+                    ]
 
-                result_text = f"Search results for '{pattern}':\n\n" + "\n\n".join(results)
+                result_text = f"Search results for '{pattern}':\n\n" + "\n\n".join(
+                    results
+                )
                 return [TextContent(type="text", text=result_text)]
 
             else:
@@ -273,12 +290,7 @@ class LogarithmicMcpServer:
         )
 
         # Configure uvicorn
-        config = uvicorn.Config(
-            app,
-            host=self._host,
-            port=self._port,
-            log_level="info"
-        )
+        config = uvicorn.Config(app, host=self._host, port=self._port, log_level="info")
         server = uvicorn.Server(config)
 
         # Connect MCP server to transport

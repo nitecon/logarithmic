@@ -33,32 +33,42 @@ class LogHighlighter(QSyntaxHighlighter):
 
         # Keywords to match (case-insensitive)
         self._error_keywords = [
-            'error', 'fatal', 'critical', 'exception', 'fail', 'failed', 'failure'
+            "error",
+            "fatal",
+            "critical",
+            "exception",
+            "fail",
+            "failed",
+            "failure",
         ]
-        self._warning_keywords = [
-            'warning', 'warn', 'caution', 'deprecated'
-        ]
-        self._verbose_keywords = [
-            'verbose', 'debug', 'trace'
-        ]
+        self._warning_keywords = ["warning", "warn", "caution", "deprecated"]
+        self._verbose_keywords = ["verbose", "debug", "trace"]
 
     def _update_formats(self) -> None:
         """Update text formats based on theme colors."""
         # Error format
         self._error_format = QTextCharFormat()
-        self._error_format.setForeground(QColor(self._theme_colors.get("error_color", "#FF4444")))
+        self._error_format.setForeground(
+            QColor(self._theme_colors.get("error_color", "#FF4444"))
+        )
 
         # Warning format
         self._warning_format = QTextCharFormat()
-        self._warning_format.setForeground(QColor(self._theme_colors.get("warning_color", "#FFA500")))
+        self._warning_format.setForeground(
+            QColor(self._theme_colors.get("warning_color", "#FFA500"))
+        )
 
         # Verbose format
         self._verbose_format = QTextCharFormat()
-        self._verbose_format.setForeground(QColor(self._theme_colors.get("verbose_color", "#888888")))
+        self._verbose_format.setForeground(
+            QColor(self._theme_colors.get("verbose_color", "#888888"))
+        )
 
         # Default format
         self._default_format = QTextCharFormat()
-        self._default_format.setForeground(QColor(self._theme_colors.get("default_color", "#CCCCCC")))
+        self._default_format.setForeground(
+            QColor(self._theme_colors.get("default_color", "#CCCCCC"))
+        )
 
     def update_theme(self, theme_colors: dict) -> None:
         """Update theme colors and rehighlight.

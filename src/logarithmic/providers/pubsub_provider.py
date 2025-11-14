@@ -31,10 +31,7 @@ class PubSubProvider(LogProvider):
     """
 
     def __init__(
-        self,
-        config: ProviderConfig,
-        log_manager: "LogManager",
-        path_key: str
+        self, config: ProviderConfig, log_manager: "LogManager", path_key: str
     ) -> None:
         """Initialize Pub/Sub provider.
 
@@ -50,7 +47,9 @@ class PubSubProvider(LogProvider):
         self._credentials_path = config.get("credentials_path")
 
         if not self._project_id or not self._subscription_id:
-            raise ValueError("PubSubProvider requires 'project_id' and 'subscription_id' in config")
+            raise ValueError(
+                "PubSubProvider requires 'project_id' and 'subscription_id' in config"
+            )
 
     def start(self) -> None:
         """Start consuming from Pub/Sub subscription."""
@@ -126,15 +125,12 @@ class PubSubProvider(LogProvider):
             supports_full_log=False,  # Pub/Sub has no persistent history
             supports_tail=True,
             tail_line_limit=200,
-            description="Streams messages from Pub/Sub subscription (tail-only, no history)"
+            description="Streams messages from Pub/Sub subscription (tail-only, no history)",
         )
 
     @classmethod
     def create_config(
-        cls,
-        project_id: str,
-        subscription_id: str,
-        credentials_path: str | None = None
+        cls, project_id: str, subscription_id: str, credentials_path: str | None = None
     ) -> ProviderConfig:
         """Create a Pub/Sub provider configuration.
 

@@ -74,7 +74,7 @@ class WildcardFileWatcher(QThread):
         log_manager: "LogManager",
         path_key: str,
         tail_only: bool = False,
-        tail_lines: int = 200
+        tail_lines: int = 200,
     ) -> None:
         """Initialize the wildcard watcher.
 
@@ -100,10 +100,12 @@ class WildcardFileWatcher(QThread):
         # Validate pattern
         pattern_path = Path(pattern)
         if not pattern_path.parent.exists():
-            raise InvalidPathError(f"Parent directory does not exist: {pattern_path.parent}")
+            raise InvalidPathError(
+                f"Parent directory does not exist: {pattern_path.parent}"
+            )
 
         # Check if pattern contains wildcards
-        if '*' not in pattern and '?' not in pattern:
+        if "*" not in pattern and "?" not in pattern:
             raise InvalidPathError(f"Pattern must contain wildcards: {pattern}")
 
     def run(self) -> None:
@@ -131,8 +133,7 @@ class WildcardFileWatcher(QThread):
                 if self._current_file and not self._current_file.exists():
                     logger.warning(f"Current file deleted: {self._current_file}")
                     self._log_manager.publish_stream_interrupted(
-                        self._path_key,
-                        f"File deleted: {self._current_file.name}"
+                        self._path_key, f"File deleted: {self._current_file.name}"
                     )
                     self._cleanup_current_file()
 
@@ -187,7 +188,9 @@ class WildcardFileWatcher(QThread):
         # Sort by modification time, newest first
         matching_files.sort(key=lambda f: os.path.getmtime(f), reverse=True)
         latest = Path(matching_files[0])
-        logger.debug(f"Latest matching file: {latest} (from {len(matching_files)} matches)")
+        logger.debug(
+            f"Latest matching file: {latest} (from {len(matching_files)} matches)"
+        )
         return latest
 
     def _switch_to_file(self, new_file: Path, is_initial: bool) -> None:
@@ -208,8 +211,7 @@ class WildcardFileWatcher(QThread):
         if old_file and not is_initial:
             self._cleanup_current_file()
             self._log_manager.publish_stream_interrupted(
-                self._path_key,
-                f"Switching from {old_file.name} to {new_file.name}"
+                self._path_key, f"Switching from {old_file.name} to {new_file.name}"
             )
 
         # Switch to new file
@@ -229,9 +231,11 @@ class WildcardFileWatcher(QThread):
                     # Tail-only mode: read last N lines
                     lines = f.readlines()
                     if len(lines) > self._tail_lines:
-                        lines = lines[-self._tail_lines:]
+                        lines = lines[-self._tail_lines :]
                     content = "".join(lines)
-                    logger.info(f"Tail-only mode: read last {len(lines)} lines from {new_file}")
+                    logger.info(
+                        f"Tail-only mode: read last {len(lines)} lines from {new_file}"
+                    )
                 else:
                     # Full log mode: read entire file
                     content = f.read()
@@ -246,7 +250,9 @@ class WildcardFileWatcher(QThread):
             self.error_occurred.emit(f"Error reading file: {e}")
             return
         except Exception as e:
-            logger.error(f"Unexpected error reading file {new_file}: {e}", exc_info=True)
+            logger.error(
+                f"Unexpected error reading file {new_file}: {e}", exc_info=True
+            )
             self.error_occurred.emit(f"Error reading file: {e}")
             return
 
@@ -264,8 +270,7 @@ class WildcardFileWatcher(QThread):
         if is_initial:
             # For initial file, publish a special message to set the filename in status
             self._log_manager.publish_stream_interrupted(
-                self._path_key,
-                f"Initial file: {new_file.name}"
+                self._path_key, f"Initial file: {new_file.name}"
             )
             self._log_manager.publish_stream_resumed(self._path_key)
         else:
@@ -310,14 +315,20 @@ class WildcardFileWatcher(QThread):
             try:
                 current_mtime = self._current_file.stat().st_mtime
                 if new_mtime > current_mtime:
-                    logger.info(f"Newer file detected: {new_file} (mtime: {new_mtime} > {current_mtime})")
+                    logger.info(
+                        f"Newer file detected: {new_file} (mtime: {new_mtime} > {current_mtime})"
+                    )
                     self._switch_to_file(new_file, is_initial=False)
                 else:
-                    logger.debug(f"Ignoring older file: {new_file} (mtime: {new_mtime} <= {current_mtime})")
+                    logger.debug(
+                        f"Ignoring older file: {new_file} (mtime: {new_mtime} <= {current_mtime})"
+                    )
             except (FileNotFoundError, PermissionError, OSError) as e:
                 logger.warning(f"Cannot access current file {self._current_file}: {e}")
                 # Current file is gone, switch to new one
-                logger.info(f"Switching to new file since current is inaccessible: {new_file}")
+                logger.info(
+                    f"Switching to new file since current is inaccessible: {new_file}"
+                )
                 self._switch_to_file(new_file, is_initial=False)
         else:
             # No current file, switch to this one

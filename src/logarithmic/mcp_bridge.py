@@ -103,9 +103,11 @@ class McpBridge(LogSubscriber):
                 metadata = self._settings.get_log_metadata(path_key)
                 result[path_key] = {
                     "id": metadata.get("id", path_key) if metadata else path_key,
-                    "description": metadata.get("description", path_key) if metadata else path_key,
+                    "description": metadata.get("description", path_key)
+                    if metadata
+                    else path_key,
                     "content": self._log_cache.get(path_key, ""),
-                    "path": path_key
+                    "path": path_key,
                 }
             return result
 
@@ -127,7 +129,7 @@ class McpBridge(LogSubscriber):
                         "id": metadata["id"],
                         "description": metadata.get("description", path_key),
                         "content": self._log_cache.get(path_key, ""),
-                        "path": path_key
+                        "path": path_key,
                     }
 
             # Fallback: try as path_key
@@ -135,9 +137,11 @@ class McpBridge(LogSubscriber):
                 metadata = self._settings.get_log_metadata(log_id)
                 return {
                     "id": metadata.get("id", log_id) if metadata else log_id,
-                    "description": metadata.get("description", log_id) if metadata else log_id,
+                    "description": metadata.get("description", log_id)
+                    if metadata
+                    else log_id,
                     "content": self._log_cache.get(log_id, ""),
-                    "path": log_id
+                    "path": log_id,
                 }
 
             return None

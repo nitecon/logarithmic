@@ -56,7 +56,9 @@ class Settings:
         session_file = self.sessions_dir / f"{self._current_session}.json"
 
         if not session_file.exists():
-            logger.info(f"No session file found for '{self._current_session}', using defaults")
+            logger.info(
+                f"No session file found for '{self._current_session}', using defaults"
+            )
             self._data = {
                 "tracked_logs": [],
                 "open_windows": [],
@@ -69,27 +71,29 @@ class Settings:
                 "font_sizes": {  # Font size settings
                     "log_content": 9,
                     "ui_elements": 10,
-                    "status_bar": 9
+                    "status_bar": 9,
                 },
                 "theme": {  # Theme/color settings
-                    "error_color": "#FF4444",      # Red for errors
-                    "warning_color": "#FFA500",    # Orange for warnings
-                    "verbose_color": "#888888",    # Gray for verbose
-                    "default_color": "#CCCCCC"     # Default text color
+                    "error_color": "#FF4444",  # Red for errors
+                    "warning_color": "#FFA500",  # Orange for warnings
+                    "verbose_color": "#888888",  # Gray for verbose
+                    "default_color": "#CCCCCC",  # Default text color
                 },
                 "mcp_server": {  # MCP server settings
                     "enabled": False,
                     "binding_address": "127.0.0.1",
-                    "port": 3000
+                    "port": 3000,
                 },
-                "log_metadata": {}  # path_key -> {id, description} mapping
+                "log_metadata": {},  # path_key -> {id, description} mapping
             }
             return
 
         try:
             with open(session_file, "r", encoding="utf-8") as f:
                 self._data = json.load(f)
-            logger.info(f"Loaded session '{self._current_session}' from: {session_file}")
+            logger.info(
+                f"Loaded session '{self._current_session}' from: {session_file}"
+            )
 
             # Ensure all keys exist
             if "open_windows" not in self._data:
@@ -107,10 +111,7 @@ class Settings:
 
         except Exception as e:
             logger.error(f"Failed to load settings: {e}")
-            self._data = {
-                "open_windows": [],
-                "window_positions": {}
-            }
+            self._data = {"open_windows": [], "window_positions": {}}
 
     def _save(self) -> None:
         """Save settings to disk (saves to current session)."""
@@ -192,7 +193,9 @@ class Settings:
         """
         return self._data.get("window_positions", {}).get(path)
 
-    def set_window_position(self, path: str, x: int, y: int, width: int, height: int) -> None:
+    def set_window_position(
+        self, path: str, x: int, y: int, width: int, height: int
+    ) -> None:
         """Set window position and size for a log file.
 
         Args:
@@ -208,7 +211,7 @@ class Settings:
             "x": x,
             "y": y,
             "width": width,
-            "height": height
+            "height": height,
         }
         self._save()
 
@@ -299,7 +302,9 @@ class Settings:
         Args:
             session_name: Name of the session to switch to
         """
-        logger.info(f"Switching from session '{self._current_session}' to '{session_name}'")
+        logger.info(
+            f"Switching from session '{self._current_session}' to '{session_name}'"
+        )
         self._current_session = session_name
         self._save_last_session()
         self._load()
@@ -358,7 +363,7 @@ class Settings:
             "x": x,
             "y": y,
             "width": width,
-            "height": height
+            "height": height,
         }
         self._save()
 
@@ -368,11 +373,9 @@ class Settings:
         Returns:
             Dictionary with font sizes for different elements
         """
-        return self._data.get("font_sizes", {
-            "log_content": 9,
-            "ui_elements": 10,
-            "status_bar": 9
-        })
+        return self._data.get(
+            "font_sizes", {"log_content": 9, "ui_elements": 10, "status_bar": 9}
+        )
 
     def set_font_size(self, element: str, size: int) -> None:
         """Set font size for a specific element.
@@ -392,12 +395,15 @@ class Settings:
         Returns:
             Dictionary with color settings
         """
-        return self._data.get("theme", {
-            "error_color": "#FF4444",
-            "warning_color": "#FFA500",
-            "verbose_color": "#888888",
-            "default_color": "#CCCCCC"
-        })
+        return self._data.get(
+            "theme",
+            {
+                "error_color": "#FF4444",
+                "warning_color": "#FFA500",
+                "verbose_color": "#888888",
+                "default_color": "#CCCCCC",
+            },
+        )
 
     def set_theme_color(self, color_type: str, color: str) -> None:
         """Set a theme color.
@@ -419,11 +425,10 @@ class Settings:
         Returns:
             Dictionary with MCP server configuration
         """
-        return self._data.get("mcp_server", {
-            "enabled": False,
-            "binding_address": "127.0.0.1",
-            "port": 3000
-        })
+        return self._data.get(
+            "mcp_server",
+            {"enabled": False, "binding_address": "127.0.0.1", "port": 3000},
+        )
 
     def set_mcp_server_enabled(self, enabled: bool) -> None:
         """Enable or disable the MCP server.
@@ -483,7 +488,7 @@ class Settings:
             self._data["log_metadata"] = {}
         self._data["log_metadata"][path_key] = {
             "id": log_id,
-            "description": description
+            "description": description,
         }
         self._save()
 

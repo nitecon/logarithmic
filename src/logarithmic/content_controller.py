@@ -34,7 +34,7 @@ class ContentController:
         identifier: str,
         show_filename_in_status: bool = True,
         theme_colors: dict | None = None,
-        prefix_lines: bool = False
+        prefix_lines: bool = False,
     ):
         """Initialize content controller.
 
@@ -123,7 +123,9 @@ class ContentController:
         self._text_edit.setFont(self._fonts.get_mono_font(9))
 
         # Create syntax highlighter
-        self._highlighter = LogHighlighter(self._text_edit.document(), self._theme_colors)
+        self._highlighter = LogHighlighter(
+            self._text_edit.document(), self._theme_colors
+        )
 
         # Connect scroll detection
         scrollbar = self._text_edit.verticalScrollBar()
@@ -159,12 +161,12 @@ class ContentController:
 
         # Prefix lines if needed (for combined mode)
         if source and self._prefix_lines:
-            lines = content.split('\n')
+            lines = content.split("\n")
             prefixed_lines = [f"[{source}] {line}" if line else line for line in lines]
-            content = '\n'.join(prefixed_lines)
+            content = "\n".join(prefixed_lines)
 
         # Count new lines
-        new_lines = content.count('\n')
+        new_lines = content.count("\n")
         self._line_count += new_lines
 
         # Append content
@@ -190,7 +192,7 @@ class ContentController:
             return
 
         self._text_edit.setPlainText(content)
-        self._line_count = content.count('\n')
+        self._line_count = content.count("\n")
 
         # Auto-scroll if in live mode
         if self._is_live:
@@ -283,7 +285,9 @@ class ContentController:
         if self._on_pause_callback:
             self._on_pause_callback(checked)
 
-        logger.debug(f"Pause {'enabled' if checked else 'disabled'} for {self._identifier}")
+        logger.debug(
+            f"Pause {'enabled' if checked else 'disabled'} for {self._identifier}"
+        )
 
     def _on_clear(self) -> None:
         """Handle Clear button click."""

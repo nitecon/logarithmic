@@ -47,7 +47,7 @@ class FileWatcherThread(QThread):
         log_manager: "LogManager",
         path_key: str,
         tail_only: bool = False,
-        tail_lines: int = 200
+        tail_lines: int = 200,
     ) -> None:
         """Initialize the watcher thread.
 
@@ -80,7 +80,9 @@ class FileWatcherThread(QThread):
                 logger.info(f"File exists, starting tail: {self.file_path}")
                 self._start_tailing()
             else:
-                logger.info(f"File does not exist, watching for creation: {self.file_path}")
+                logger.info(
+                    f"File does not exist, watching for creation: {self.file_path}"
+                )
                 self._watch_for_creation()
 
             # Keep thread alive
@@ -154,9 +156,11 @@ class FileWatcherThread(QThread):
                     # Tail-only mode: read last N lines
                     lines = f.readlines()
                     if len(lines) > self._tail_lines:
-                        lines = lines[-self._tail_lines:]
+                        lines = lines[-self._tail_lines :]
                     initial_content = "".join(lines)
-                    logger.info(f"Tail-only mode: read last {len(lines)} lines from {self.file_path}")
+                    logger.info(
+                        f"Tail-only mode: read last {len(lines)} lines from {self.file_path}"
+                    )
                 else:
                     # Full log mode: read entire file
                     initial_content = f.read()
@@ -170,14 +174,20 @@ class FileWatcherThread(QThread):
             raise FileAccessError(f"Failed to read file: {e}") from e
 
         # Start watching for changes
-        event_handler = _FileTailHandler(self.file_path, self._on_file_modified, self._on_file_deleted)
+        event_handler = _FileTailHandler(
+            self.file_path, self._on_file_modified, self._on_file_deleted
+        )
         self._observer = Observer()
-        self._observer.schedule(event_handler, str(self.file_path.parent), recursive=False)
+        self._observer.schedule(
+            event_handler, str(self.file_path.parent), recursive=False
+        )
         self._observer.start()
 
         # Open file for tailing
         try:
-            self._file_handle = open(self.file_path, "r", encoding="utf-8", errors="replace")
+            self._file_handle = open(
+                self.file_path, "r", encoding="utf-8", errors="replace"
+            )
             self._file_handle.seek(0, 2)  # Seek to end
         except Exception as e:
             raise FileAccessError(f"Failed to open file for tailing: {e}") from e
@@ -259,7 +269,9 @@ class _FileCreationHandler(FileSystemEventHandler):
 class _FileTailHandler(FileSystemEventHandler):
     """Handler for watching file modification and deletion events."""
 
-    def __init__(self, target_path: Path, on_modified: callable, on_deleted: callable) -> None:
+    def __init__(
+        self, target_path: Path, on_modified: callable, on_deleted: callable
+    ) -> None:
         """Initialize the handler.
 
         Args:

@@ -29,7 +29,12 @@ class LogGroupWindow(QWidget):
     - Combined: All logs merged into one view with prefixes
     """
 
-    def __init__(self, group_name: str, theme_colors: dict | None = None, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        group_name: str,
+        theme_colors: dict | None = None,
+        parent: QWidget | None = None,
+    ) -> None:
         """Initialize the log group window.
 
         Args:
@@ -41,7 +46,9 @@ class LogGroupWindow(QWidget):
         self.group_name = group_name
         self._fonts = get_font_manager()
         self._theme_colors = theme_colors or {}
-        self._position_changed_callback: Callable[[int, int, int, int], None] | None = None
+        self._position_changed_callback: Callable[[int, int, int, int], None] | None = (
+            None
+        )
         self._last_saved_position: tuple[int, int, int, int] | None = None
         self._set_default_size_callback: Callable[[int, int], None] | None = None
         self._get_other_windows_callback: Callable[[], list] | None = None
@@ -88,7 +95,9 @@ class LogGroupWindow(QWidget):
         # Set Default Size button
         set_size_button = QPushButton("Set Default Size")
         set_size_button.setFont(self._fonts.get_ui_font(10))
-        set_size_button.setToolTip("Set the current window size as the default for all new log windows")
+        set_size_button.setToolTip(
+            "Set the current window size as the default for all new log windows"
+        )
         set_size_button.clicked.connect(self._on_set_default_size_clicked)
         controls_layout.addWidget(set_size_button)
 
@@ -164,7 +173,7 @@ class LogGroupWindow(QWidget):
             self._fonts,
             filename,
             show_filename_in_status=True,
-            theme_colors=self._theme_colors
+            theme_colors=self._theme_colors,
         )
 
         # Create the widget
@@ -174,14 +183,12 @@ class LogGroupWindow(QWidget):
         self.tab_widget.addTab(widget, filename)
 
         # Store controller
-        self._tab_widgets[path] = {
-            'controller': controller
-        }
+        self._tab_widgets[path] = {"controller": controller}
 
         # Restore buffered content if exists
         if path in self._log_buffers:
             controller.set_text(self._log_buffers[path])
-            self._line_counts[path] = self._log_buffers[path].count('\n')
+            self._line_counts[path] = self._log_buffers[path].count("\n")
         else:
             self._line_counts[path] = 0
 
@@ -204,7 +211,7 @@ class LogGroupWindow(QWidget):
 
         # Save current tab content to buffers
         for path, widgets in self._tab_widgets.items():
-            controller = widgets['controller']
+            controller = widgets["controller"]
             self._log_buffers[path] = controller.get_text()
 
         # Clear tabs
@@ -217,7 +224,7 @@ class LogGroupWindow(QWidget):
             "Combined View",
             show_filename_in_status=False,
             theme_colors=self._theme_colors,
-            prefix_lines=True  # Enable line prefixing for combined mode
+            prefix_lines=True,  # Enable line prefixing for combined mode
         )
 
         # Create the widget
@@ -265,7 +272,7 @@ class LogGroupWindow(QWidget):
         if path not in self._log_paths:
             return
 
-        self._line_counts[path] += content.count('\n')
+        self._line_counts[path] += content.count("\n")
 
         # Always buffer content
         if path not in self._log_buffers:
@@ -275,7 +282,7 @@ class LogGroupWindow(QWidget):
         if self._mode == "tabbed":
             # Append to specific tab using controller
             if path in self._tab_widgets:
-                controller = self._tab_widgets[path]['controller']
+                controller = self._tab_widgets[path]["controller"]
                 if not controller.is_paused():
                     controller.append_text(content)
         else:
@@ -284,7 +291,7 @@ class LogGroupWindow(QWidget):
                 if not self._combined_controller.is_paused():
                     filename = Path(path).name
                     # Update combined view line count
-                    self._combined_line_count += content.count('\n')
+                    self._combined_line_count += content.count("\n")
                     # ContentController will handle prefixing with source
                     self._combined_controller.append_text(content, source=filename)
 
@@ -335,7 +342,9 @@ class LogGroupWindow(QWidget):
         """Update the status label."""
         total_lines = sum(self._line_counts.values())
         mode_str = "Combined" if self._mode == "combined" else "Tabbed"
-        self.status_label.setText(f"{len(self._log_paths)} logs | {total_lines:,} total lines | {mode_str} mode")
+        self.status_label.setText(
+            f"{len(self._log_paths)} logs | {total_lines:,} total lines | {mode_str} mode"
+        )
 
     def _update_tab_status(self, path: str) -> None:
         """Update status bar for a specific tab.
@@ -347,14 +356,16 @@ class LogGroupWindow(QWidget):
             return
 
         tab_data = self._tab_widgets[path]
-        status_bar = tab_data['status_bar']
+        status_bar = tab_data["status_bar"]
 
         line_count = self._line_counts.get(path, 0)
-        mode = "🔴 LIVE" if tab_data['is_live'] else "⏸ SCROLL"
-        pause_status = " [PAUSED]" if tab_data['is_paused'] else ""
+        mode = "🔴 LIVE" if tab_data["is_live"] else "⏸ SCROLL"
+        pause_status = " [PAUSED]" if tab_data["is_paused"] else ""
 
         filename = Path(path).name
-        status_text = f"📄 {filename}  |  📊 {line_count:,} lines  |  {mode}{pause_status}"
+        status_text = (
+            f"📄 {filename}  |  📊 {line_count:,} lines  |  {mode}{pause_status}"
+        )
         status_bar.setText(status_text)
 
     def _on_tab_scroll_changed(self, path: str) -> None:
@@ -367,16 +378,16 @@ class LogGroupWindow(QWidget):
             return
 
         tab_data = self._tab_widgets[path]
-        text_edit = tab_data['text_edit']
+        text_edit = tab_data["text_edit"]
         scrollbar = text_edit.verticalScrollBar()
 
         # Check if scrolled away from bottom
         is_at_bottom = scrollbar.value() >= scrollbar.maximum() - 10
 
-        if not is_at_bottom and tab_data['is_live']:
+        if not is_at_bottom and tab_data["is_live"]:
             # User scrolled up, exit live mode
-            tab_data['is_live'] = False
-            tab_data['go_live_btn'].show()
+            tab_data["is_live"] = False
+            tab_data["go_live_btn"].show()
             self._update_tab_status(path)
 
     def _on_tab_go_live(self, path: str) -> None:
@@ -389,11 +400,11 @@ class LogGroupWindow(QWidget):
             return
 
         tab_data = self._tab_widgets[path]
-        tab_data['is_live'] = True
-        tab_data['go_live_btn'].hide()
+        tab_data["is_live"] = True
+        tab_data["go_live_btn"].hide()
 
         # Scroll to bottom
-        tab_data['text_edit'].moveCursor(QTextCursor.MoveOperation.End)
+        tab_data["text_edit"].moveCursor(QTextCursor.MoveOperation.End)
 
         self._update_tab_status(path)
 
@@ -408,7 +419,7 @@ class LogGroupWindow(QWidget):
             return
 
         tab_data = self._tab_widgets[path]
-        tab_data['is_paused'] = checked
+        tab_data["is_paused"] = checked
         self._update_tab_status(path)
 
     def _on_tab_clear(self, path: str) -> None:
@@ -421,7 +432,7 @@ class LogGroupWindow(QWidget):
             return
 
         tab_data = self._tab_widgets[path]
-        tab_data['text_edit'].clear()
+        tab_data["text_edit"].clear()
         self._line_counts[path] = 0
         self._log_buffers[path] = ""
         self._update_tab_status(path)
@@ -434,10 +445,10 @@ class LogGroupWindow(QWidget):
         scrollbar = self._combined_widget.verticalScrollBar()
         is_at_bottom = scrollbar.value() >= scrollbar.maximum() - 10
 
-        if not is_at_bottom and self._combined_controls['is_live']:
+        if not is_at_bottom and self._combined_controls["is_live"]:
             # User scrolled up, exit live mode
-            self._combined_controls['is_live'] = False
-            self._combined_controls['go_live_btn'].show()
+            self._combined_controls["is_live"] = False
+            self._combined_controls["go_live_btn"].show()
             self._update_combined_status()
 
     def _on_combined_go_live(self) -> None:
@@ -445,8 +456,8 @@ class LogGroupWindow(QWidget):
         if not self._combined_controls:
             return
 
-        self._combined_controls['is_live'] = True
-        self._combined_controls['go_live_btn'].hide()
+        self._combined_controls["is_live"] = True
+        self._combined_controls["go_live_btn"].hide()
 
         # Scroll to bottom
         if self._combined_widget:
@@ -463,7 +474,7 @@ class LogGroupWindow(QWidget):
         if not self._combined_controls:
             return
 
-        self._combined_controls['is_paused'] = checked
+        self._combined_controls["is_paused"] = checked
         self._update_combined_status()
 
     def _on_combined_clear(self) -> None:
@@ -494,8 +505,8 @@ class LogGroupWindow(QWidget):
         self._combined_line_count = 0
 
         # Ensure we're in live mode
-        self._combined_controls['is_live'] = True
-        self._combined_controls['go_live_btn'].hide()
+        self._combined_controls["is_live"] = True
+        self._combined_controls["go_live_btn"].hide()
 
         # Scroll to bottom (end of warning message)
         self._combined_widget.moveCursor(QTextCursor.MoveOperation.End)
@@ -508,10 +519,10 @@ class LogGroupWindow(QWidget):
         if not self._combined_controls:
             return
 
-        status_bar = self._combined_controls['status_bar']
+        status_bar = self._combined_controls["status_bar"]
         # Use combined view line count (not individual log counts)
-        mode = "🔴 LIVE" if self._combined_controls['is_live'] else "⏸ SCROLL"
-        pause_status = " [PAUSED]" if self._combined_controls['is_paused'] else ""
+        mode = "🔴 LIVE" if self._combined_controls["is_live"] else "⏸ SCROLL"
+        pause_status = " [PAUSED]" if self._combined_controls["is_paused"] else ""
 
         status_text = f"📊 {self._combined_line_count:,} lines  |  {mode}{pause_status}"
         status_bar.setText(status_text)
@@ -541,7 +552,9 @@ class LogGroupWindow(QWidget):
         """
         self._get_other_windows_callback = callback
 
-    def set_position_changed_callback(self, callback: Callable[[int, int, int, int], None]) -> None:
+    def set_position_changed_callback(
+        self, callback: Callable[[int, int, int, int], None]
+    ) -> None:
         """Set callback for when window position/size changes.
 
         Args:
@@ -638,8 +651,12 @@ class LogGroupWindow(QWidget):
                 self._last_saved_position = current
             else:
                 old_x, old_y, old_w, old_h = self._last_saved_position
-                if (abs(current[0] - old_x) > 5 or abs(current[1] - old_y) > 5 or
-                    current[2] != old_w or current[3] != old_h):
+                if (
+                    abs(current[0] - old_x) > 5
+                    or abs(current[1] - old_y) > 5
+                    or current[2] != old_w
+                    or current[3] != old_h
+                ):
                     self._position_changed_callback(*current)
                     self._last_saved_position = current
 
@@ -651,7 +668,7 @@ class LogGroupWindow(QWidget):
         """
         # Update tabbed mode controllers
         for widgets in self._tab_widgets.values():
-            controller = widgets['controller']
+            controller = widgets["controller"]
             controller.set_log_font_size(size)
 
         # Update combined mode controller
@@ -666,7 +683,7 @@ class LogGroupWindow(QWidget):
         """
         # Update tabbed mode controllers
         for widgets in self._tab_widgets.values():
-            controller = widgets['controller']
+            controller = widgets["controller"]
             controller.set_ui_font_size(size)
 
         # Update combined mode controller
@@ -681,7 +698,7 @@ class LogGroupWindow(QWidget):
         """
         # Update tabbed mode controllers
         for widgets in self._tab_widgets.values():
-            controller = widgets['controller']
+            controller = widgets["controller"]
             controller.set_status_font_size(size)
 
         # Update combined mode controller
@@ -698,7 +715,7 @@ class LogGroupWindow(QWidget):
 
         # Update tabbed mode controllers
         for widgets in self._tab_widgets.values():
-            controller = widgets['controller']
+            controller = widgets["controller"]
             controller.update_theme(theme_colors)
 
         # Update combined mode controller

@@ -26,10 +26,7 @@ class FileProvider(LogProvider):
     """
 
     def __init__(
-        self,
-        config: ProviderConfig,
-        log_manager: "LogManager",
-        path_key: str
+        self, config: ProviderConfig, log_manager: "LogManager", path_key: str
     ) -> None:
         """Initialize file provider.
 
@@ -56,7 +53,9 @@ class FileProvider(LogProvider):
             logger.warning(f"FileProvider already running for {self._path_key}")
             return
 
-        logger.info(f"Starting FileProvider for {self._path_key} in {self._config.mode.value} mode")
+        logger.info(
+            f"Starting FileProvider for {self._path_key} in {self._config.mode.value} mode"
+        )
 
         # Determine tail settings based on mode
         tail_only = self._config.mode == ProviderMode.TAIL_ONLY
@@ -70,7 +69,7 @@ class FileProvider(LogProvider):
                 log_manager=self._log_manager,
                 path_key=self._path_key,
                 tail_only=tail_only,
-                tail_lines=tail_lines
+                tail_lines=tail_lines,
             )
         else:
             # Use regular file watcher
@@ -80,7 +79,7 @@ class FileProvider(LogProvider):
                 log_manager=self._log_manager,
                 path_key=self._path_key,
                 tail_only=tail_only,
-                tail_lines=tail_lines
+                tail_lines=tail_lines,
             )
 
         # Connect error signal
@@ -173,7 +172,7 @@ class FileProvider(LogProvider):
             supports_full_log=True,
             supports_tail=True,
             tail_line_limit=10000,  # Files can handle large tail limits
-            description="Reads entire file history and tails new content"
+            description="Reads entire file history and tails new content",
         )
 
     def _on_error(self, error_message: str) -> None:
@@ -190,7 +189,7 @@ class FileProvider(LogProvider):
         cls,
         path: str,
         is_wildcard: bool = False,
-        mode: ProviderMode = ProviderMode.FULL_LOG
+        mode: ProviderMode = ProviderMode.FULL_LOG,
     ) -> ProviderConfig:
         """Create a file provider configuration.
 

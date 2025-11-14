@@ -67,7 +67,9 @@ class FontManager:
             logger.warning(f"Oxanium font not found at {oxanium_path}")
 
         # Load Red Hat Mono (for log content)
-        red_hat_path = self._font_dir / "Red_Hat_Mono" / "RedHatMono-VariableFont_wght.ttf"
+        red_hat_path = (
+            self._font_dir / "Red_Hat_Mono" / "RedHatMono-VariableFont_wght.ttf"
+        )
         if red_hat_path.exists():
             self._red_hat_mono_id = QFontDatabase.addApplicationFont(str(red_hat_path))
             if self._red_hat_mono_id != -1:

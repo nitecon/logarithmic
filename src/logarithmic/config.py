@@ -32,8 +32,7 @@ class LogarithmicConfig(BaseSettings):
     log_format: str = Field(
         default="json",
         description=(
-            "Log format: 'json' for structured logging or "
-            "'text' for human-readable"
+            "Log format: 'json' for structured logging or 'text' for human-readable"
         ),
     )
 

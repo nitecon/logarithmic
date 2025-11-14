@@ -1,7 +1,5 @@
 """Tests for the MCP bridge module."""
 
-
-
 from logarithmic.log_manager import LogManager
 from logarithmic.mcp_bridge import McpBridge
 from logarithmic.settings import Settings

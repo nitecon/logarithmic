@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 # Custom metaclass that combines QObject's metaclass with ABCMeta
 class QABCMeta(type(QObject), ABCMeta):  # type: ignore
     """Metaclass that combines Qt's metaclass with ABC."""
+
     pass
 
 
@@ -76,7 +77,7 @@ class ProviderConfig:
         self,
         provider_type: ProviderType,
         mode: ProviderMode = ProviderMode.FULL_LOG,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         """Initialize provider config.
 
@@ -110,7 +111,7 @@ class ProviderConfig:
         return {
             "provider_type": self.provider_type.value,
             "mode": self.mode.value,
-            **self.config
+            **self.config,
         }
 
     @classmethod
@@ -144,10 +145,7 @@ class LogProvider(QObject, metaclass=QABCMeta):
     error_occurred = Signal(str)
 
     def __init__(
-        self,
-        config: ProviderConfig,
-        log_manager: "LogManager",
-        path_key: str
+        self, config: ProviderConfig, log_manager: "LogManager", path_key: str
     ) -> None:
         """Initialize the provider.
 
@@ -277,10 +275,7 @@ class ProviderFactory(Protocol):
     """Protocol for provider factory functions."""
 
     def __call__(
-        self,
-        config: ProviderConfig,
-        log_manager: "LogManager",
-        path_key: str
+        self, config: ProviderConfig, log_manager: "LogManager", path_key: str
     ) -> LogProvider:
         """Create a provider instance.
 

@@ -109,7 +109,9 @@ class TrackingModeDialog(QDialog):
         layout.addLayout(wildcard_layout)
 
         # Help text
-        help_text = QLabel("Wildcard patterns use * for any characters (e.g., Log-*.txt)")
+        help_text = QLabel(
+            "Wildcard patterns use * for any characters (e.g., Log-*.txt)"
+        )
         help_text.setStyleSheet("color: gray; font-size: 9pt; font-style: italic;")
         help_text.setWordWrap(True)
         layout.addWidget(help_text)
@@ -132,9 +134,10 @@ class TrackingModeDialog(QDialog):
             filename = Path(self.file_path).name
             # Replace date/time patterns with wildcards
             import re
-            pattern = re.sub(r'\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}', '*', filename)
-            pattern = re.sub(r'\d{8}-\d{6}', '*', pattern)
-            pattern = re.sub(r'\d+', '*', pattern)
+
+            pattern = re.sub(r"\d{4}\.\d{2}\.\d{2}-\d{2}\.\d{2}\.\d{2}", "*", filename)
+            pattern = re.sub(r"\d{8}-\d{6}", "*", pattern)
+            pattern = re.sub(r"\d+", "*", pattern)
             self.wildcard_input.setText(pattern)
             self.wildcard_input.setFocus()
             self.wildcard_input.selectAll()
@@ -147,17 +150,15 @@ class TrackingModeDialog(QDialog):
             pattern = self.wildcard_input.text().strip()
             if not pattern:
                 QMessageBox.warning(
-                    self,
-                    "Invalid Pattern",
-                    "Please enter a wildcard pattern."
+                    self, "Invalid Pattern", "Please enter a wildcard pattern."
                 )
                 return
 
-            if '*' not in pattern and '?' not in pattern:
+            if "*" not in pattern and "?" not in pattern:
                 QMessageBox.warning(
                     self,
                     "Invalid Pattern",
-                    "Wildcard pattern must contain * or ? characters."
+                    "Wildcard pattern must contain * or ? characters.",
                 )
                 return
 
@@ -192,7 +193,9 @@ class MainWindow(QMainWindow):
         self._provider_registry = ProviderRegistry.get_instance()
 
         # Track active watchers/providers and viewer windows
-        self._watchers: dict[str, FileWatcherThread] = {}  # Legacy watchers (for backward compat)
+        self._watchers: dict[
+            str, FileWatcherThread
+        ] = {}  # Legacy watchers (for backward compat)
         self._providers: dict[str, LogProvider] = {}  # New provider-based system
         self._viewer_windows: dict[str, LogViewerWindow] = {}
         self._group_windows: dict[str, LogGroupWindow] = {}  # group_name -> window
@@ -219,7 +222,9 @@ class MainWindow(QMainWindow):
         self._last_main_position: tuple[int, int, int, int] | None = None
 
         # Connect to log manager signals for auto-opening windows
-        self._log_manager.log_content_available.connect(self._on_content_available_for_auto_open)
+        self._log_manager.log_content_available.connect(
+            self._on_content_available_for_auto_open
+        )
 
         self._setup_ui()
         self._restore_session()
@@ -259,7 +264,9 @@ class MainWindow(QMainWindow):
         self._ui_elements.append(self.provider_combo)
 
         self.path_input = QLineEdit()
-        self.path_input.setPlaceholderText("Enter log file path or wildcard pattern (e.g., C:/logs/*.txt)")
+        self.path_input.setPlaceholderText(
+            "Enter log file path or wildcard pattern (e.g., C:/logs/*.txt)"
+        )
         self.path_input.setFont(self._fonts.get_ui_font(10))
         control_layout.addWidget(self.path_input)
         self._ui_elements.append(self.path_input)
@@ -292,14 +299,18 @@ class MainWindow(QMainWindow):
 
         self.save_session_button = QPushButton("Save")
         self.save_session_button.setFont(self._fonts.get_ui_font(9, bold=True))
-        self.save_session_button.setToolTip("Save current session (or enter new name to create)")
+        self.save_session_button.setToolTip(
+            "Save current session (or enter new name to create)"
+        )
         self.save_session_button.clicked.connect(self._on_save_session)
         session_layout.addWidget(self.save_session_button)
         self._ui_elements.append(self.save_session_button)
 
         self.duplicate_session_button = QPushButton("Duplicate")
         self.duplicate_session_button.setFont(self._fonts.get_ui_font(9))
-        self.duplicate_session_button.setToolTip("Duplicate current session with a new name")
+        self.duplicate_session_button.setToolTip(
+            "Duplicate current session with a new name"
+        )
         self.duplicate_session_button.clicked.connect(self._on_duplicate_session)
         session_layout.addWidget(self.duplicate_session_button)
         self._ui_elements.append(self.duplicate_session_button)
@@ -433,7 +444,9 @@ class MainWindow(QMainWindow):
         self.status_font_size_spin.setValue(9)
         self.status_font_size_spin.setSuffix(" pt")
         self.status_font_size_spin.setFont(self._fonts.get_ui_font(10))
-        self.status_font_size_spin.valueChanged.connect(self._on_status_font_size_changed)
+        self.status_font_size_spin.valueChanged.connect(
+            self._on_status_font_size_changed
+        )
         status_font_layout.addWidget(self.status_font_size_spin)
         self._ui_elements.append(self.status_font_size_spin)
 
@@ -467,7 +480,9 @@ class MainWindow(QMainWindow):
         window_mgmt_layout.addSpacing(10)
 
         # Set Sizes button with description
-        set_sizes_desc = QLabel("Resize all open log viewer windows to the default size")
+        set_sizes_desc = QLabel(
+            "Resize all open log viewer windows to the default size"
+        )
         set_sizes_desc.setFont(self._fonts.get_ui_font(9))
         set_sizes_desc.setStyleSheet("color: gray;")
         window_mgmt_layout.addWidget(set_sizes_desc)
@@ -491,7 +506,9 @@ class MainWindow(QMainWindow):
         mcp_layout.addWidget(self.mcp_title)
         self._ui_elements.append(self.mcp_title)
 
-        mcp_desc = QLabel("Enable Model Context Protocol server to expose logs to AI agents")
+        mcp_desc = QLabel(
+            "Enable Model Context Protocol server to expose logs to AI agents"
+        )
         mcp_desc.setFont(self._fonts.get_ui_font(9))
         mcp_desc.setStyleSheet("color: gray;")
         mcp_layout.addWidget(mcp_desc)
@@ -542,7 +559,9 @@ class MainWindow(QMainWindow):
         mcp_layout.addLayout(port_layout)
 
         # Restart note
-        restart_note = QLabel("Note: Changes require application restart to take effect")
+        restart_note = QLabel(
+            "Note: Changes require application restart to take effect"
+        )
         restart_note.setFont(self._fonts.get_ui_font(8))
         restart_note.setStyleSheet("color: orange; font-style: italic;")
         mcp_layout.addWidget(restart_note)
@@ -582,7 +601,9 @@ class MainWindow(QMainWindow):
         provider_type = self.provider_combo.currentData()
 
         if provider_type == ProviderType.FILE:
-            self.path_input.setPlaceholderText("Enter log file path or wildcard pattern (e.g., C:/logs/*.txt)")
+            self.path_input.setPlaceholderText(
+                "Enter log file path or wildcard pattern (e.g., C:/logs/*.txt)"
+            )
             self.path_input.setVisible(True)
         elif provider_type == ProviderType.KUBERNETES:
             # Hide text input for K8s - we use a dialog instead
@@ -660,7 +681,9 @@ class MainWindow(QMainWindow):
         add_to_group_btn.setFont(self._fonts.get_ui_font(ui_size))
         add_to_group_btn.setToolTip("Add to selected group")
         add_to_group_btn.setMaximumWidth(30)
-        add_to_group_btn.clicked.connect(lambda: self._on_assign_to_group(path_key, group_combo.currentText()))
+        add_to_group_btn.clicked.connect(
+            lambda: self._on_assign_to_group(path_key, group_combo.currentText())
+        )
         layout.addWidget(add_to_group_btn)
 
         layout.addStretch()
@@ -744,7 +767,7 @@ class MainWindow(QMainWindow):
             path_str: File path or wildcard pattern
         """
         # Check if pattern contains wildcards
-        is_wildcard = '*' in path_str or '?' in path_str
+        is_wildcard = "*" in path_str or "?" in path_str
 
         if is_wildcard:
             # Use pattern as-is for wildcard watching
@@ -762,7 +785,9 @@ class MainWindow(QMainWindow):
             # Validate parent directory exists
             pattern_path = Path(path_str)
             if not pattern_path.parent.exists():
-                raise InvalidPathError(f"Parent directory does not exist: {pattern_path.parent}")
+                raise InvalidPathError(
+                    f"Parent directory does not exist: {pattern_path.parent}"
+                )
 
             # Create provider config
             config = FileProvider.create_config(path_str, is_wildcard=True)
@@ -778,8 +803,12 @@ class MainWindow(QMainWindow):
                 self._mcp_bridge.subscribe_to_log(path_key)
 
             # Create and start provider
-            provider = self._provider_registry.create_provider(config, self._log_manager, path_key)
-            provider.error_occurred.connect(lambda err: self._on_watcher_error(path_key, err))
+            provider = self._provider_registry.create_provider(
+                config, self._log_manager, path_key
+            )
+            provider.error_occurred.connect(
+                lambda err: self._on_watcher_error(path_key, err)
+            )
             provider.start()
 
             self._providers[path_key] = provider
@@ -805,7 +834,9 @@ class MainWindow(QMainWindow):
 
             # Validate path
             if not file_path.parent.exists():
-                raise InvalidPathError(f"Parent directory does not exist: {file_path.parent}")
+                raise InvalidPathError(
+                    f"Parent directory does not exist: {file_path.parent}"
+                )
 
             # Check read permissions (if file exists)
             if file_path.exists() and not os.access(file_path, os.R_OK):
@@ -825,8 +856,12 @@ class MainWindow(QMainWindow):
                 self._mcp_bridge.subscribe_to_log(path_key)
 
             # Create and start provider
-            provider = self._provider_registry.create_provider(config, self._log_manager, path_key)
-            provider.error_occurred.connect(lambda err: self._on_watcher_error(path_key, err))
+            provider = self._provider_registry.create_provider(
+                config, self._log_manager, path_key
+            )
+            provider.error_occurred.connect(
+                lambda err: self._on_watcher_error(path_key, err)
+            )
             provider.start()
 
             self._providers[path_key] = provider
@@ -847,7 +882,9 @@ class MainWindow(QMainWindow):
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
-        namespace, tracking_mode, identifier, container, app_label = dialog.get_selection()
+        namespace, tracking_mode, identifier, container, app_label = (
+            dialog.get_selection()
+        )
 
         if not identifier:
             QMessageBox.warning(
@@ -885,14 +922,18 @@ class MainWindow(QMainWindow):
 
             # Create provider config
             # App mode always uses TAIL_ONLY, pod mode can use FULL_LOG
-            mode = ProviderMode.TAIL_ONLY if tracking_mode == "app" else ProviderMode.TAIL_ONLY
+            mode = (
+                ProviderMode.TAIL_ONLY
+                if tracking_mode == "app"
+                else ProviderMode.TAIL_ONLY
+            )
 
             config = KubernetesProvider.create_config(
                 namespace=namespace,
                 pod_name=identifier if tracking_mode == "pod" else f"app={app_label}",
                 container=container,
                 is_deployment=(tracking_mode == "app"),
-                mode=mode
+                mode=mode,
             )
 
             # Add to list
@@ -906,8 +947,12 @@ class MainWindow(QMainWindow):
                 self._mcp_bridge.subscribe_to_log(path_key)
 
             # Create and start provider
-            provider = self._provider_registry.create_provider(config, self._log_manager, path_key)
-            provider.error_occurred.connect(lambda err: self._on_watcher_error(path_key, err))
+            provider = self._provider_registry.create_provider(
+                config, self._log_manager, path_key
+            )
+            provider.error_occurred.connect(
+                lambda err: self._on_watcher_error(path_key, err)
+            )
             provider.start()
 
             self._providers[path_key] = provider
@@ -952,8 +997,12 @@ class MainWindow(QMainWindow):
             # Recreate provider from config
             config = self._provider_configs.get(path_key)
             if config:
-                new_provider = self._provider_registry.create_provider(config, self._log_manager, path_key)
-                new_provider.error_occurred.connect(lambda err: self._on_watcher_error(path_key, err))
+                new_provider = self._provider_registry.create_provider(
+                    config, self._log_manager, path_key
+                )
+                new_provider.error_occurred.connect(
+                    lambda err: self._on_watcher_error(path_key, err)
+                )
                 new_provider.start()
                 self._providers[path_key] = new_provider
         elif path_key in self._watchers:
@@ -963,7 +1012,7 @@ class MainWindow(QMainWindow):
             watcher.wait()  # Wait for thread to finish
 
             # Start new watcher
-            is_wildcard = '*' in path_key or '?' in path_key
+            is_wildcard = "*" in path_key or "?" in path_key
             if is_wildcard:
                 self._start_wildcard_watcher(path_key, path_key)
             else:
@@ -974,10 +1023,7 @@ class MainWindow(QMainWindow):
     def _on_add_group(self) -> None:
         """Handle adding a new group."""
         group_name, ok = QInputDialog.getText(
-            self,
-            "Add Group",
-            "Enter group name:",
-            QLineEdit.EchoMode.Normal
+            self, "Add Group", "Enter group name:", QLineEdit.EchoMode.Normal
         )
 
         if not ok or not group_name.strip():
@@ -986,7 +1032,9 @@ class MainWindow(QMainWindow):
         group_name = group_name.strip()
 
         if group_name in self._available_groups:
-            QMessageBox.warning(self, "Duplicate Group", f"Group '{group_name}' already exists.")
+            QMessageBox.warning(
+                self, "Duplicate Group", f"Group '{group_name}' already exists."
+            )
             return
 
         self._available_groups.append(group_name)
@@ -1044,7 +1092,9 @@ class MainWindow(QMainWindow):
             group_name: Name of the group to remove
         """
         # Check if any logs are assigned to this group
-        assigned_logs = [path for path, group in self._log_groups.items() if group == group_name]
+        assigned_logs = [
+            path for path, group in self._log_groups.items() if group == group_name
+        ]
 
         if assigned_logs:
             reply = QMessageBox.question(
@@ -1052,7 +1102,7 @@ class MainWindow(QMainWindow):
                 "Remove Group",
                 f"Group '{group_name}' has {len(assigned_logs)} log(s) assigned.\n"
                 f"Remove group and unassign all logs?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
             if reply != QMessageBox.StandardButton.Yes:
                 return
@@ -1142,7 +1192,8 @@ class MainWindow(QMainWindow):
             lambda w, h: self._settings.set_default_window_size(w, h)
         )
         group_window.set_other_windows_callback(
-            lambda: list(self._viewer_windows.values()) + [gw for gw in self._group_windows.values() if gw != group_window]
+            lambda: list(self._viewer_windows.values())
+            + [gw for gw in self._group_windows.values() if gw != group_window]
         )
 
         # Restore position if saved
@@ -1184,7 +1235,7 @@ class MainWindow(QMainWindow):
         # Clear and recreate
         self.log_list.clear()
         for path_key in items_data:
-            is_wildcard = '*' in path_key or '?' in path_key
+            is_wildcard = "*" in path_key or "?" in path_key
             self._add_log_to_list(path_key, is_wildcard)
 
     def _refresh_all_group_items(self) -> None:
@@ -1349,7 +1400,9 @@ class MainWindow(QMainWindow):
         # Check if log is in a group - if so, show group window instead
         if path_key in self._log_groups:
             group_name = self._log_groups[path_key]
-            logger.info(f"Log {path_key} is in group {group_name}, showing group window instead")
+            logger.info(
+                f"Log {path_key} is in group {group_name}, showing group window instead"
+            )
             self._on_show_group(group_name)
             return
 
@@ -1496,7 +1549,9 @@ class MainWindow(QMainWindow):
             f"Error watching {path_key}:\n{error}",
         )
 
-    def _on_window_position_changed(self, path_key: str, x: int, y: int, width: int, height: int) -> None:
+    def _on_window_position_changed(
+        self, path_key: str, x: int, y: int, width: int, height: int
+    ) -> None:
         """Handle window position/size change.
 
         Args:
@@ -1507,7 +1562,9 @@ class MainWindow(QMainWindow):
             height: Window height
         """
         self._settings.set_window_position(path_key, x, y, width, height)
-        logger.debug(f"Updated window position for {path_key}: ({x}, {y}) {width}x{height}")
+        logger.debug(
+            f"Updated window position for {path_key}: ({x}, {y}) {width}x{height}"
+        )
 
     def _on_viewer_closed(self, path_key: str) -> None:
         """Handle viewer window being closed.
@@ -1536,7 +1593,9 @@ class MainWindow(QMainWindow):
         watcher.new_lines.connect(lambda text: self._on_new_lines(path_key, text))
         watcher.file_created.connect(lambda: self._on_file_created(path_key))
         watcher.file_deleted.connect(lambda: self._on_file_deleted(path_key))
-        watcher.error_occurred.connect(lambda err: self._on_watcher_error(path_key, err))
+        watcher.error_occurred.connect(
+            lambda err: self._on_watcher_error(path_key, err)
+        )
         watcher.start()
 
         self._watchers[path_key] = watcher
@@ -1550,8 +1609,12 @@ class MainWindow(QMainWindow):
         """
         watcher = WildcardFileWatcher(pattern, self._log_manager, path_key)
         watcher.new_lines.connect(lambda text: self._on_new_lines(path_key, text))
-        watcher.file_switched.connect(lambda old, new: self._on_file_switched(path_key, old, new))
-        watcher.error_occurred.connect(lambda err: self._on_watcher_error(path_key, err))
+        watcher.file_switched.connect(
+            lambda old, new: self._on_file_switched(path_key, old, new)
+        )
+        watcher.error_occurred.connect(
+            lambda err: self._on_watcher_error(path_key, err)
+        )
         watcher.start()
 
         self._watchers[path_key] = watcher
@@ -1599,7 +1662,7 @@ class MainWindow(QMainWindow):
                 pod_name=pod_or_label,
                 container=container,
                 is_deployment=is_deployment,
-                mode=ProviderMode.TAIL_ONLY
+                mode=ProviderMode.TAIL_ONLY,
             )
 
             # Add to list
@@ -1609,8 +1672,12 @@ class MainWindow(QMainWindow):
             self._log_manager.register_log(path_key)
 
             # Create and start provider
-            provider = self._provider_registry.create_provider(config, self._log_manager, path_key)
-            provider.error_occurred.connect(lambda err: self._on_watcher_error(path_key, err))
+            provider = self._provider_registry.create_provider(
+                config, self._log_manager, path_key
+            )
+            provider.error_occurred.connect(
+                lambda err: self._on_watcher_error(path_key, err)
+            )
             provider.start()
 
             self._providers[path_key] = provider
@@ -1645,20 +1712,26 @@ class MainWindow(QMainWindow):
                     self._restore_kubernetes_log(path_str)
                     continue
                 elif path_str.startswith("kafka://"):
-                    logger.warning(f"Kafka provider not yet implemented, skipping: {path_str}")
+                    logger.warning(
+                        f"Kafka provider not yet implemented, skipping: {path_str}"
+                    )
                     continue
                 elif path_str.startswith("pubsub://"):
-                    logger.warning(f"PubSub provider not yet implemented, skipping: {path_str}")
+                    logger.warning(
+                        f"PubSub provider not yet implemented, skipping: {path_str}"
+                    )
                     continue
 
                 # Check if it's a wildcard pattern (for files)
-                is_wildcard = '*' in path_str or '?' in path_str
+                is_wildcard = "*" in path_str or "?" in path_str
 
                 if is_wildcard:
                     # Restore wildcard pattern using provider
                     pattern_path = Path(path_str)
                     if not pattern_path.parent.exists():
-                        logger.warning(f"Skipping pattern (parent dir missing): {path_str}")
+                        logger.warning(
+                            f"Skipping pattern (parent dir missing): {path_str}"
+                        )
                         continue
 
                     # Add to list with wildcard indicator
@@ -1669,8 +1742,12 @@ class MainWindow(QMainWindow):
 
                     # Create and start provider
                     config = FileProvider.create_config(path_str, is_wildcard=True)
-                    provider = self._provider_registry.create_provider(config, self._log_manager, path_str)
-                    provider.error_occurred.connect(lambda err, pk=path_str: self._on_watcher_error(pk, err))
+                    provider = self._provider_registry.create_provider(
+                        config, self._log_manager, path_str
+                    )
+                    provider.error_occurred.connect(
+                        lambda err, pk=path_str: self._on_watcher_error(pk, err)
+                    )
                     provider.start()
 
                     self._providers[path_str] = provider
@@ -1694,8 +1771,12 @@ class MainWindow(QMainWindow):
 
                     # Create and start provider
                     config = FileProvider.create_config(path_str, is_wildcard=False)
-                    provider = self._provider_registry.create_provider(config, self._log_manager, path_str)
-                    provider.error_occurred.connect(lambda err, pk=path_str: self._on_watcher_error(pk, err))
+                    provider = self._provider_registry.create_provider(
+                        config, self._log_manager, path_str
+                    )
+                    provider.error_occurred.connect(
+                        lambda err, pk=path_str: self._on_watcher_error(pk, err)
+                    )
                     provider.start()
 
                     self._providers[path_str] = provider
@@ -1733,9 +1814,7 @@ class MainWindow(QMainWindow):
             port = mcp_settings.get("port", 3000)
 
             self._mcp_server = LogarithmicMcpServer(
-                self._mcp_bridge,
-                host=binding_address,
-                port=port
+                self._mcp_bridge, host=binding_address, port=port
             )
 
             self._mcp_server.start()
@@ -1746,7 +1825,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self,
                 "MCP Server Error",
-                f"Failed to start MCP server: {e}\n\nThe application will continue without MCP support."
+                f"Failed to start MCP server: {e}\n\nThe application will continue without MCP support.",
             )
 
     def _on_reset_session(self) -> None:
@@ -1755,7 +1834,7 @@ class MainWindow(QMainWindow):
             self,
             "New Session",
             "Clear all logs and start a fresh session?\nCurrent session will be saved.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
 
         if reply != QMessageBox.StandardButton.Yes:
@@ -1840,7 +1919,9 @@ class MainWindow(QMainWindow):
         offset_y = main_pos.y() + 50
 
         # Cascade all windows (viewers + groups)
-        all_windows = list(self._viewer_windows.values()) + list(self._group_windows.values())
+        all_windows = list(self._viewer_windows.values()) + list(
+            self._group_windows.values()
+        )
         for i, window in enumerate(all_windows):
             window.move(offset_x + (i * 30), offset_y + (i * 30))
             window.resize(800, 600)
@@ -1877,7 +1958,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.warning(
                     self,
                     "Invalid Drop",
-                    f"Only files can be tracked, not directories:\n{file_path}"
+                    f"Only files can be tracked, not directories:\n{file_path}",
                 )
                 continue
 
@@ -1910,7 +1991,9 @@ class MainWindow(QMainWindow):
                 # Validate parent directory exists
                 pattern_path = Path(path_key)
                 if not pattern_path.parent.exists():
-                    raise InvalidPathError(f"Parent directory does not exist: {pattern_path.parent}")
+                    raise InvalidPathError(
+                        f"Parent directory does not exist: {pattern_path.parent}"
+                    )
 
                 # Create provider config
                 config = FileProvider.create_config(path_key, is_wildcard=True)
@@ -1922,8 +2005,12 @@ class MainWindow(QMainWindow):
                 self._log_manager.register_log(path_key)
 
                 # Create and start provider
-                provider = self._provider_registry.create_provider(config, self._log_manager, path_key)
-                provider.error_occurred.connect(lambda err: self._on_watcher_error(path_key, err))
+                provider = self._provider_registry.create_provider(
+                    config, self._log_manager, path_key
+                )
+                provider.error_occurred.connect(
+                    lambda err: self._on_watcher_error(path_key, err)
+                )
                 provider.start()
 
                 self._providers[path_key] = provider
@@ -1931,7 +2018,9 @@ class MainWindow(QMainWindow):
 
                 # Save to settings
                 self._settings.add_tracked_log(path_key)
-                logger.info(f"Added wildcard pattern via drag-drop (provider): {path_key}")
+                logger.info(
+                    f"Added wildcard pattern via drag-drop (provider): {path_key}"
+                )
 
             else:  # dedicated
                 path_key = dialog.file_path
@@ -1948,7 +2037,9 @@ class MainWindow(QMainWindow):
 
                 # Validate path
                 if not file_path.parent.exists():
-                    raise InvalidPathError(f"Parent directory does not exist: {file_path.parent}")
+                    raise InvalidPathError(
+                        f"Parent directory does not exist: {file_path.parent}"
+                    )
 
                 # Check read permissions (if file exists)
                 if file_path.exists() and not os.access(file_path, os.R_OK):
@@ -1964,8 +2055,12 @@ class MainWindow(QMainWindow):
                 self._log_manager.register_log(path_key)
 
                 # Create and start provider
-                provider = self._provider_registry.create_provider(config, self._log_manager, path_key)
-                provider.error_occurred.connect(lambda err: self._on_watcher_error(path_key, err))
+                provider = self._provider_registry.create_provider(
+                    config, self._log_manager, path_key
+                )
+                provider.error_occurred.connect(
+                    lambda err: self._on_watcher_error(path_key, err)
+                )
                 provider.start()
 
                 self._providers[path_key] = provider
@@ -2009,8 +2104,12 @@ class MainWindow(QMainWindow):
             self._last_main_position = current
         else:
             old_x, old_y, old_w, old_h = self._last_main_position
-            if (abs(current[0] - old_x) > 5 or abs(current[1] - old_y) > 5 or
-                current[2] != old_w or current[3] != old_h):
+            if (
+                abs(current[0] - old_x) > 5
+                or abs(current[1] - old_y) > 5
+                or current[2] != old_w
+                or current[3] != old_h
+            ):
                 self._settings.set_main_window_position(*current)
                 self._last_main_position = current
 
@@ -2020,7 +2119,9 @@ class MainWindow(QMainWindow):
         if pos:
             self.move(pos["x"], pos["y"])
             self.resize(pos["width"], pos["height"])
-            logger.info(f"Restored main window position: ({pos['x']}, {pos['y']}) {pos['width']}x{pos['height']}")
+            logger.info(
+                f"Restored main window position: ({pos['x']}, {pos['y']}) {pos['width']}x{pos['height']}"
+            )
 
     def closeEvent(self, event) -> None:
         """Handle window close event.
@@ -2096,7 +2197,7 @@ class MainWindow(QMainWindow):
             self,
             "Switch Session",
             f"Switch to session '{session_name}'?\nCurrent session will be saved and all windows will be closed.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
 
         if reply == QMessageBox.StandardButton.Yes:
@@ -2160,7 +2261,7 @@ class MainWindow(QMainWindow):
                 self,
                 "Save New Session",
                 "Enter session name:",
-                QLineEdit.EchoMode.Normal
+                QLineEdit.EchoMode.Normal,
             )
 
             if not ok or not session_name.strip():
@@ -2178,7 +2279,7 @@ class MainWindow(QMainWindow):
                 self,
                 "Overwrite Session",
                 f"Session '{session_name}' already exists.\nOverwrite it?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
             if reply != QMessageBox.StandardButton.Yes:
                 return
@@ -2195,7 +2296,9 @@ class MainWindow(QMainWindow):
             logger.info(f"Saved and switched to session: {session_name}")
 
         self._refresh_session_list()
-        QMessageBox.information(self, "Session Saved", f"Session '{session_name}' saved")
+        QMessageBox.information(
+            self, "Session Saved", f"Session '{session_name}' saved"
+        )
 
     def _on_duplicate_session(self) -> None:
         """Handle Duplicate button click - duplicates current session with new name."""
@@ -2206,7 +2309,7 @@ class MainWindow(QMainWindow):
             "Duplicate Session",
             f"Enter name for duplicate of '{current_session}':",
             QLineEdit.EchoMode.Normal,
-            f"{current_session}-copy"
+            f"{current_session}-copy",
         )
 
         if not ok or not session_name.strip():
@@ -2220,14 +2323,16 @@ class MainWindow(QMainWindow):
                 self,
                 "Overwrite Session",
                 f"Session '{session_name}' already exists.\nOverwrite it?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             )
             if reply != QMessageBox.StandardButton.Yes:
                 return
 
         self._settings.save_session_as(session_name)
         self._refresh_session_list()
-        QMessageBox.information(self, "Session Duplicated", f"Session duplicated as '{session_name}'")
+        QMessageBox.information(
+            self, "Session Duplicated", f"Session duplicated as '{session_name}'"
+        )
         logger.info(f"Duplicated session as: {session_name}")
 
     def _on_delete_session(self) -> None:
@@ -2238,7 +2343,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(
                 self,
                 "Cannot Delete",
-                "Cannot delete the current session.\nSwitch to another session first."
+                "Cannot delete the current session.\nSwitch to another session first.",
             )
             return
 
@@ -2246,16 +2351,22 @@ class MainWindow(QMainWindow):
             self,
             "Delete Session",
             f"Delete session '{current_session}'?\nThis cannot be undone.",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
 
         if reply == QMessageBox.StandardButton.Yes:
             if self._settings.delete_session(current_session):
                 self._refresh_session_list()
-                QMessageBox.information(self, "Session Deleted", f"Session '{current_session}' deleted")
+                QMessageBox.information(
+                    self, "Session Deleted", f"Session '{current_session}' deleted"
+                )
                 logger.info(f"Deleted session: {current_session}")
             else:
-                QMessageBox.warning(self, "Delete Failed", f"Could not delete session '{current_session}'")
+                QMessageBox.warning(
+                    self,
+                    "Delete Failed",
+                    f"Could not delete session '{current_session}'",
+                )
 
     # Font Size Management
 
@@ -2317,7 +2428,11 @@ class MainWindow(QMainWindow):
         for widget in self._ui_elements:
             if isinstance(widget, QPushButton):
                 # Check if button should be bold
-                is_bold = widget in [self.add_button, self.session_label, self.save_session_button]
+                is_bold = widget in [
+                    self.add_button,
+                    self.session_label,
+                    self.save_session_button,
+                ]
                 widget.setFont(self._fonts.get_ui_font(size, bold=is_bold))
             elif isinstance(widget, QLabel):
                 # Check if label should be bold or larger

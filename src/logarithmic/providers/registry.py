@@ -45,7 +45,7 @@ class ProviderRegistry:
         factory: ProviderFactory,
         display_name: str,
         description: str,
-        icon: str = "📄"
+        icon: str = "📄",
     ) -> None:
         """Register a provider type.
 
@@ -65,10 +65,7 @@ class ProviderRegistry:
         logger.info(f"Registered provider: {provider_type.value} ({display_name})")
 
     def create_provider(
-        self,
-        config: ProviderConfig,
-        log_manager: "LogManager",
-        path_key: str
+        self, config: ProviderConfig, log_manager: "LogManager", path_key: str
     ) -> LogProvider:
         """Create a provider instance.
 
@@ -98,10 +95,7 @@ class ProviderRegistry:
             List of provider metadata dictionaries
         """
         return [
-            {
-                "type": provider_type.value,
-                **metadata
-            }
+            {"type": provider_type.value, **metadata}
             for provider_type, metadata in self._metadata.items()
         ]
 
@@ -144,7 +138,7 @@ class ProviderRegistry:
             factory=FileProvider,
             display_name="File",
             description="Watch log files on the local filesystem",
-            icon="📄"
+            icon="📄",
         )
 
         # Always register Kubernetes provider (will show error if library not installed)
@@ -153,6 +147,6 @@ class ProviderRegistry:
             factory=KubernetesProvider,
             display_name="Kubernetes Pods",
             description="Stream logs from Kubernetes pods",
-            icon="☸️"
+            icon="☸️",
         )
         logger.info("Kubernetes provider registered")

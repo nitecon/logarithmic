@@ -1,16 +1,19 @@
-"""File watching and tailing logic using watchdog."""
+"""File watcher for monitoring log files."""
 
 import logging
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING
+from typing import Callable
 from typing import Optional
+from typing import TextIO
 
 from PySide6.QtCore import QThread
 from PySide6.QtCore import Signal
 from watchdog.events import FileSystemEvent
 from watchdog.events import FileSystemEventHandler
-from watchdog.observers import Observer
+from watchdog.observers import Observer as WatchdogObserver
+from watchdog.observers.api import BaseObserver
 
 from logarithmic.exceptions import FileAccessError
 from logarithmic.exceptions import InvalidPathError
@@ -65,8 +68,8 @@ class FileWatcherThread(QThread):
         self._running = False
         self._paused = False
         self._buffer: list[str] = []
-        self._file_handle: Optional[object] = None
-        self._observer: Optional[Observer] = None
+        self._file_handle: TextIO | None = None
+        self._observer: BaseObserver | None = None
         self._tail_only = tail_only
         self._tail_lines = tail_lines
 
@@ -120,7 +123,7 @@ class FileWatcherThread(QThread):
             raise InvalidPathError(f"Parent directory does not exist: {parent_dir}")
 
         event_handler = _FileCreationHandler(self.file_path, self._on_file_created)
-        self._observer = Observer()
+        self._observer = WatchdogObserver()
         self._observer.schedule(event_handler, str(parent_dir), recursive=False)
         self._observer.start()
 
@@ -177,7 +180,7 @@ class FileWatcherThread(QThread):
         event_handler = _FileTailHandler(
             self.file_path, self._on_file_modified, self._on_file_deleted
         )
-        self._observer = Observer()
+        self._observer = WatchdogObserver()
         self._observer.schedule(
             event_handler, str(self.file_path.parent), recursive=False
         )
@@ -249,7 +252,7 @@ class FileWatcherThread(QThread):
 class _FileCreationHandler(FileSystemEventHandler):
     """Handler for watching file creation events."""
 
-    def __init__(self, target_path: Path, callback: callable) -> None:
+    def __init__(self, target_path: Path, callback: Callable[[], None]) -> None:
         """Initialize the handler.
 
         Args:
@@ -262,7 +265,8 @@ class _FileCreationHandler(FileSystemEventHandler):
 
     def on_created(self, event: FileSystemEvent) -> None:
         """Handle file creation events."""
-        if not event.is_directory and Path(event.src_path) == self.target_path:
+        src_path = event.src_path if isinstance(event.src_path, str) else str(event.src_path)
+        if not event.is_directory and Path(src_path) == self.target_path:
             self.callback()
 
 
@@ -270,7 +274,7 @@ class _FileTailHandler(FileSystemEventHandler):
     """Handler for watching file modification and deletion events."""
 
     def __init__(
-        self, target_path: Path, on_modified: callable, on_deleted: callable
+        self, target_path: Path, on_modified: Callable[[], None], on_deleted: Callable[[], None]
     ) -> None:
         """Initialize the handler.
 
@@ -286,15 +290,18 @@ class _FileTailHandler(FileSystemEventHandler):
 
     def on_modified(self, event: FileSystemEvent) -> None:
         """Handle file modification events."""
-        if not event.is_directory and Path(event.src_path) == self.target_path:
+        src_path = event.src_path if isinstance(event.src_path, str) else str(event.src_path)
+        if not event.is_directory and Path(src_path) == self.target_path:
             self.on_modified_callback()
 
     def on_deleted(self, event: FileSystemEvent) -> None:
         """Handle file deletion events."""
-        if not event.is_directory and Path(event.src_path) == self.target_path:
+        src_path = event.src_path if isinstance(event.src_path, str) else str(event.src_path)
+        if not event.is_directory and Path(src_path) == self.target_path:
             self.on_deleted_callback()
 
     def on_moved(self, event: FileSystemEvent) -> None:
         """Handle file move events (treat as deletion)."""
-        if not event.is_directory and Path(event.src_path) == self.target_path:
+        src_path = event.src_path if isinstance(event.src_path, str) else str(event.src_path)
+        if not event.is_directory and Path(src_path) == self.target_path:
             self.on_deleted_callback()

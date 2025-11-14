@@ -1,4 +1,5 @@
 """Wildcard File Watcher - handles glob patterns and automatic file switching."""
+"""Wildcard file watcher for monitoring glob patterns."""
 
 import fnmatch
 import glob
@@ -7,12 +8,15 @@ import os
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING
+from typing import Callable
+from typing import TextIO
 
 from PySide6.QtCore import QThread
 from PySide6.QtCore import Signal
 from watchdog.events import FileSystemEvent
 from watchdog.events import FileSystemEventHandler
-from watchdog.observers import Observer
+from watchdog.observers import Observer as WatchdogObserver
+from watchdog.observers.api import BaseObserver
 
 from logarithmic.exceptions import InvalidPathError
 
@@ -23,9 +27,9 @@ logger = logging.getLogger(__name__)
 
 
 class _DirectoryWatchHandler(FileSystemEventHandler):
-    """Watches directory for files matching pattern."""
+    """Handler for watching directory for new matching files."""
 
-    def __init__(self, pattern: str, callback) -> None:
+    def __init__(self, pattern: str, callback: Callable[[str], None]) -> None:
         """Initialize handler.
 
         Args:
@@ -44,11 +48,12 @@ class _DirectoryWatchHandler(FileSystemEventHandler):
         """
         if not event.is_directory:
             # Check if new file matches pattern using fnmatch
-            filename = Path(event.src_path).name
+            src_path = event.src_path if isinstance(event.src_path, str) else str(event.src_path)
+            filename = Path(src_path).name
             pattern_name = Path(self._pattern).name
             if fnmatch.fnmatch(filename, pattern_name):
-                logger.info(f"New matching file detected: {event.src_path}")
-                self._callback(event.src_path)
+                logger.info(f"New matching file detected: {src_path}")
+                self._callback(src_path)
 
 
 class WildcardFileWatcher(QThread):
@@ -92,8 +97,8 @@ class WildcardFileWatcher(QThread):
         self._running = False
         self._paused = False
         self._current_file: Path | None = None
-        self._observer: Observer | None = None
-        self._file_handle = None
+        self._observer: BaseObserver | None = None
+        self._file_handle: TextIO | None = None
         self._tail_only = tail_only
         self._tail_lines = tail_lines
 
@@ -283,7 +288,7 @@ class WildcardFileWatcher(QThread):
         directory = str(pattern_path.parent)
 
         handler = _DirectoryWatchHandler(self._pattern, self._on_new_file_created)
-        self._observer = Observer()
+        self._observer = WatchdogObserver()
         self._observer.schedule(handler, directory, recursive=False)
         self._observer.start()
         logger.info(f"Watching directory: {directory}")

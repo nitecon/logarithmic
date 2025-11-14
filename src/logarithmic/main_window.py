@@ -194,7 +194,7 @@ class MainWindow(QMainWindow):
 
         # Track active watchers/providers and viewer windows
         self._watchers: dict[
-            str, FileWatcherThread
+            str, FileWatcherThread | WildcardFileWatcher
         ] = {}  # Legacy watchers (for backward compat)
         self._providers: dict[str, LogProvider] = {}  # New provider-based system
         self._viewer_windows: dict[str, LogViewerWindow] = {}

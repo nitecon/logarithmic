@@ -439,31 +439,21 @@ class LogGroupWindow(QWidget):
 
     def _on_combined_scroll_changed(self) -> None:
         """Handle scroll change in combined mode."""
-        if not self._combined_widget or not self._combined_controls:
+        if not self._combined_controller:
             return
 
-        scrollbar = self._combined_widget.verticalScrollBar()
-        is_at_bottom = scrollbar.value() >= scrollbar.maximum() - 10
-
-        if not is_at_bottom and self._combined_controls["is_live"]:
-            # User scrolled up, exit live mode
-            self._combined_controls["is_live"] = False
-            self._combined_controls["go_live_btn"].show()
-            self._update_combined_status()
+        # Combined controller handles scroll changes internally
+        # This method is no longer needed but kept for compatibility
+        pass
 
     def _on_combined_go_live(self) -> None:
         """Handle Go Live button click in combined mode."""
-        if not self._combined_controls:
+        if not self._combined_controller:
             return
 
-        self._combined_controls["is_live"] = True
-        self._combined_controls["go_live_btn"].hide()
-
-        # Scroll to bottom
-        if self._combined_widget:
-            self._combined_widget.moveCursor(QTextCursor.MoveOperation.End)
-
-        self._update_combined_status()
+        # Combined controller handles go live internally
+        # This method is no longer needed but kept for compatibility
+        pass
 
     def _on_combined_pause(self, checked: bool) -> None:
         """Handle Pause button toggle in combined mode.
@@ -471,11 +461,12 @@ class LogGroupWindow(QWidget):
         Args:
             checked: Whether pause is enabled
         """
-        if not self._combined_controls:
+        if not self._combined_controller:
             return
 
-        self._combined_controls["is_paused"] = checked
-        self._update_combined_status()
+        # Combined controller handles pause internally
+        # This method is no longer needed but kept for compatibility
+        pass
 
     def _on_combined_clear(self) -> None:
         """Handle Clear button click in combined mode.
@@ -483,15 +474,12 @@ class LogGroupWindow(QWidget):
         This only clears the visible combined view, not the underlying log buffers.
         Tabbed mode content is preserved.
         """
-        if not self._combined_widget or not self._combined_controls:
+        if not self._combined_controller:
             return
 
         logger.info(f"Clearing combined view for group {self.group_name}")
 
-        # Completely clear the widget first
-        self._combined_widget.clear()
-
-        # Then set the warning message
+        # Use controller's clear method
         warning = (
             "═" * 80 + "\n"
             "║  COMBINED MODE - History Cleared\n"
@@ -499,33 +487,21 @@ class LogGroupWindow(QWidget):
             "║  Switch back to Tabbed Mode to see full history.\n"
             "═" * 80 + "\n\n"
         )
-        self._combined_widget.setPlainText(warning)
+        self._combined_controller.set_text(warning)
 
         # Reset ONLY the combined view line count (not the individual log line counts)
         self._combined_line_count = 0
 
-        # Ensure we're in live mode
-        self._combined_controls["is_live"] = True
-        self._combined_controls["go_live_btn"].hide()
-
-        # Scroll to bottom (end of warning message)
-        self._combined_widget.moveCursor(QTextCursor.MoveOperation.End)
-
-        self._update_combined_status()
         logger.info("Combined view cleared successfully")
 
     def _update_combined_status(self) -> None:
         """Update status bar for combined mode."""
-        if not self._combined_controls:
+        if not self._combined_controller:
             return
 
-        status_bar = self._combined_controls["status_bar"]
-        # Use combined view line count (not individual log counts)
-        mode = "🔴 LIVE" if self._combined_controls["is_live"] else "⏸ SCROLL"
-        pause_status = " [PAUSED]" if self._combined_controls["is_paused"] else ""
-
-        status_text = f"📊 {self._combined_line_count:,} lines  |  {mode}{pause_status}"
-        status_bar.setText(status_text)
+        # Combined controller handles status updates internally
+        # This method is no longer needed but kept for compatibility
+        pass
 
     def _on_set_default_size_clicked(self) -> None:
         """Handle Set Default Size button click."""

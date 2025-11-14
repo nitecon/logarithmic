@@ -3,6 +3,7 @@
 import logging
 import threading
 from typing import Any
+from typing import Callable
 
 from logarithmic.log_manager import LogManager
 from logarithmic.log_manager import LogSubscriber
@@ -37,7 +38,7 @@ class McpBridge(LogSubscriber):
         self._subscribed_paths: set[str] = set()
 
         # Callbacks for MCP server to be notified of updates
-        self._update_callbacks: list[callable] = []
+        self._update_callbacks: list[Callable[[str, str], None]] = []
 
     def subscribe_to_log(self, path_key: str) -> None:
         """Subscribe to a log source.
@@ -134,11 +135,11 @@ class McpBridge(LogSubscriber):
 
             # Fallback: try as path_key
             if log_id in self._subscribed_paths:
-                metadata = self._settings.get_log_metadata(log_id)
+                log_metadata: dict[str, str] | None = self._settings.get_log_metadata(log_id)
                 return {
-                    "id": metadata.get("id", log_id) if metadata else log_id,
-                    "description": metadata.get("description", log_id)
-                    if metadata
+                    "id": log_metadata.get("id", log_id) if log_metadata else log_id,
+                    "description": log_metadata.get("description", log_id)
+                    if log_metadata
                     else log_id,
                     "content": self._log_cache.get(log_id, ""),
                     "path": log_id,
@@ -146,7 +147,7 @@ class McpBridge(LogSubscriber):
 
             return None
 
-    def register_update_callback(self, callback: callable) -> None:
+    def register_update_callback(self, callback: Callable[[str, str], None]) -> None:
         """Register a callback to be notified of log updates.
 
         Args:
@@ -156,7 +157,7 @@ class McpBridge(LogSubscriber):
             if callback not in self._update_callbacks:
                 self._update_callbacks.append(callback)
 
-    def unregister_update_callback(self, callback: callable) -> None:
+    def unregister_update_callback(self, callback: Callable[[str, str], None]) -> None:
         """Unregister an update callback.
 
         Args:

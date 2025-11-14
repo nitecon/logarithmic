@@ -7,6 +7,7 @@ from typing import Any
 from logarithmic.providers.base import LogProvider
 from logarithmic.providers.base import ProviderCapabilities
 from logarithmic.providers.base import ProviderConfig
+from logarithmic.providers.base import ProviderMode
 from logarithmic.providers.base import ProviderType
 
 if TYPE_CHECKING:
@@ -157,4 +158,4 @@ class KafkaProvider(LogProvider):
             "offset": offset,
         }
 
-        return ProviderConfig(ProviderType.KAFKA, **config_dict)
+        return ProviderConfig(ProviderType.KAFKA, ProviderMode.TAIL_ONLY, **config_dict)

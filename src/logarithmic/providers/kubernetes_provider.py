@@ -153,7 +153,7 @@ class K8sLogStreamer(QThread):
         from queue import Queue
 
         # Track active streaming threads
-        active_threads = {}
+        active_threads: dict[str, threading.Thread] = {}
         Queue()
 
         def stream_pod_logs(pod_name: str) -> None:

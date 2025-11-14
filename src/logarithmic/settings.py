@@ -128,7 +128,8 @@ class Settings:
         Returns:
             List of file paths as strings
         """
-        return self._data.get("tracked_logs", [])
+        result = self._data.get("tracked_logs", [])
+        return list(result) if isinstance(result, list) else []
 
     def set_tracked_logs(self, paths: list[str]) -> None:
         """Set list of tracked log file paths.
@@ -171,7 +172,8 @@ class Settings:
         Returns:
             List of file paths as strings
         """
-        return self._data.get("open_windows", [])
+        result = self._data.get("open_windows", [])
+        return list(result) if isinstance(result, list) else []
 
     def set_open_windows(self, paths: list[str]) -> None:
         """Set list of log paths that have open windows.
@@ -191,7 +193,9 @@ class Settings:
         Returns:
             Dict with x, y, width, height or None
         """
-        return self._data.get("window_positions", {}).get(path)
+        positions = self._data.get("window_positions", {})
+        result = positions.get(path) if isinstance(positions, dict) else None
+        return dict(result) if isinstance(result, dict) else None
 
     def set_window_position(
         self, path: str, x: int, y: int, width: int, height: int
@@ -243,7 +247,8 @@ class Settings:
         Returns:
             List of group names
         """
-        return self._data.get("groups", [])
+        result = self._data.get("groups", [])
+        return list(result) if isinstance(result, list) else []
 
     def set_groups(self, groups: list[str]) -> None:
         """Set list of group names.
@@ -260,7 +265,8 @@ class Settings:
         Returns:
             Dictionary mapping path_key to group_name
         """
-        return self._data.get("log_groups", {})
+        result = self._data.get("log_groups", {})
+        return dict(result) if isinstance(result, dict) else {}
 
     def set_log_groups(self, log_groups: dict[str, str]) -> None:
         """Set log-to-group assignments.
@@ -367,15 +373,16 @@ class Settings:
         }
         self._save()
 
-    def get_font_sizes(self) -> dict:
+    def get_font_sizes(self) -> dict[str, int]:
         """Get font size settings.
 
         Returns:
             Dictionary with font sizes for different elements
         """
-        return self._data.get(
+        result = self._data.get(
             "font_sizes", {"log_content": 9, "ui_elements": 10, "status_bar": 9}
         )
+        return dict(result) if isinstance(result, dict) else {"log_content": 9, "ui_elements": 10, "status_bar": 9}
 
     def set_font_size(self, element: str, size: int) -> None:
         """Set font size for a specific element.
@@ -389,13 +396,13 @@ class Settings:
         self._data["font_sizes"][element] = size
         self._save()
 
-    def get_theme_colors(self) -> dict:
+    def get_theme_colors(self) -> dict[str, str]:
         """Get theme color settings.
 
         Returns:
             Dictionary with color settings
         """
-        return self._data.get(
+        result = self._data.get(
             "theme",
             {
                 "error_color": "#FF4444",
@@ -404,6 +411,12 @@ class Settings:
                 "default_color": "#CCCCCC",
             },
         )
+        return dict(result) if isinstance(result, dict) else {
+            "error_color": "#FF4444",
+            "warning_color": "#FFA500",
+            "verbose_color": "#888888",
+            "default_color": "#CCCCCC",
+        }
 
     def set_theme_color(self, color_type: str, color: str) -> None:
         """Set a theme color.
@@ -425,10 +438,11 @@ class Settings:
         Returns:
             Dictionary with MCP server configuration
         """
-        return self._data.get(
+        result = self._data.get(
             "mcp_server",
             {"enabled": False, "binding_address": "127.0.0.1", "port": 3000},
         )
+        return dict(result) if isinstance(result, dict) else {"enabled": False, "binding_address": "127.0.0.1", "port": 3000}
 
     def set_mcp_server_enabled(self, enabled: bool) -> None:
         """Enable or disable the MCP server.
@@ -474,7 +488,9 @@ class Settings:
         Returns:
             Dictionary with id and description, or None if not set
         """
-        return self._data.get("log_metadata", {}).get(path_key)
+        metadata = self._data.get("log_metadata", {})
+        result = metadata.get(path_key) if isinstance(metadata, dict) else None
+        return dict(result) if isinstance(result, dict) else None
 
     def set_log_metadata(self, path_key: str, log_id: str, description: str) -> None:
         """Set metadata for a log source.
@@ -508,4 +524,5 @@ class Settings:
         Returns:
             Dictionary mapping path_key to metadata dict
         """
-        return self._data.get("log_metadata", {})
+        result = self._data.get("log_metadata", {})
+        return dict(result) if isinstance(result, dict) else {}

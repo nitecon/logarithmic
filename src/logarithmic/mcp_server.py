@@ -57,7 +57,7 @@ class LogarithmicMcpServer:
             for _path_key, log_info in logs.items():
                 resources.append(
                     Resource(
-                        uri=f"log://{log_info['id']}",
+                        uri=f"log://{log_info['id']}",  # type: ignore[arg-type]
                         name=log_info["description"],
                         mimeType="text/plain",
                         description=f"Log content from {log_info['description']}",
@@ -86,8 +86,9 @@ class LogarithmicMcpServer:
             if log_info is None:
                 raise ValueError(f"Log not found: {log_id}")
 
-            logger.debug(f"Read resource: {uri} ({len(log_info['content'])} chars)")
-            return log_info["content"]
+            content: str = str(log_info["content"])
+            logger.debug(f"Read resource: {uri} ({len(content)} chars)")
+            return content
 
         @self._server.list_tools()
         async def list_tools() -> list[Tool]:
@@ -284,8 +285,8 @@ class LogarithmicMcpServer:
         app = Starlette(
             debug=True,
             routes=[
-                Route("/sse", endpoint=sse.handle_sse),
-                Route("/messages", endpoint=sse.handle_post_message, methods=["POST"]),
+                Route("/sse", endpoint=sse.handle_sse),  # type: ignore[attr-defined]
+                Route("/messages", endpoint=sse.handle_post_message, methods=["POST"])
             ],
         )
 
@@ -294,7 +295,7 @@ class LogarithmicMcpServer:
         server = uvicorn.Server(config)
 
         # Connect MCP server to transport
-        async with sse.connect_sse(self._server):
+        async with sse.connect_sse(self._server):  # type: ignore[call-arg,arg-type]
             logger.info(f"MCP server running on http://{self._host}:{self._port}")
             await server.serve()
 

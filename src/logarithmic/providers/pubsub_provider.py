@@ -7,6 +7,7 @@ from typing import Any
 from logarithmic.providers.base import LogProvider
 from logarithmic.providers.base import ProviderCapabilities
 from logarithmic.providers.base import ProviderConfig
+from logarithmic.providers.base import ProviderMode
 from logarithmic.providers.base import ProviderType
 
 if TYPE_CHECKING:
@@ -150,4 +151,4 @@ class PubSubProvider(LogProvider):
         if credentials_path:
             config_dict["credentials_path"] = credentials_path
 
-        return ProviderConfig(ProviderType.PUBSUB, **config_dict)
+        return ProviderConfig(ProviderType.PUBSUB, ProviderMode.TAIL_ONLY, **config_dict)

@@ -105,6 +105,7 @@ def configure_logging() -> None:
     console_handler.setLevel(log_level)
 
     # Set formatter based on config
+    formatter: logging.Formatter
     if config.log_format.lower() == "json":
         formatter = JsonFormatter()
     else:

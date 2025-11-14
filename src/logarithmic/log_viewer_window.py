@@ -42,12 +42,17 @@ class LogViewerWindow(QWidget):
         # Callbacks
         self._set_default_size_callback: Callable[[int, int], None] | None = None
         self._get_other_windows_callback: Callable[[], list] | None = None
+        self._position_changed_callback: Callable[[int, int, int, int], None] | None = None
 
         # Track last saved position
         self._last_saved_position: tuple[int, int, int, int] | None = None
 
         # Snap threshold in pixels
         self._snap_threshold = 20
+
+        # Track current file name for wildcard watchers
+        self._current_file_name = Path(file_path).name
+        self._restart_count = 0
 
         # Create content controller
         filename = Path(file_path).name
@@ -246,7 +251,7 @@ class LogViewerWindow(QWidget):
 
     def _save_position_if_changed(self) -> None:
         """Save position only if it has changed significantly."""
-        if self._position_changed_callback:
+        if self._position_changed_callback is not None:
             pos = self.pos()
             size = self.size()
             current = (pos.x(), pos.y(), size.width(), size.height())

@@ -6,6 +6,7 @@ import sys
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
+from logarithmic.logging_config import configure_logging
 from logarithmic.main_window import MainWindow
 
 
@@ -22,14 +23,8 @@ def main() -> int:
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
     
-    # Configure logging
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        handlers=[
-            logging.StreamHandler(sys.stdout)
-        ]
-    )
+    # Configure structured logging
+    configure_logging()
     
     logger = logging.getLogger(__name__)
     logger.info("Starting Logarithmic application")

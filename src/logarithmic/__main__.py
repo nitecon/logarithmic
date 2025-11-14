@@ -12,7 +12,7 @@ from logarithmic.main_window import MainWindow
 
 def main() -> int:
     """Run the Logarithmic application.
-    
+
     Returns:
         Exit code
     """
@@ -22,20 +22,20 @@ def main() -> int:
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
     )
-    
+
     # Configure structured logging
     configure_logging()
-    
+
     logger = logging.getLogger(__name__)
     logger.info("Starting Logarithmic application")
-    
+
     app = QApplication(sys.argv)
     app.setApplicationName("Logarithmic")
     app.setOrganizationName("Logarithmic")
-    
+
     window = MainWindow()
     window.show()
-    
+
     return app.exec()
 
 

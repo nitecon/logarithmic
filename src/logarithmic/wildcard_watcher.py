@@ -24,10 +24,10 @@ logger = logging.getLogger(__name__)
 
 class _DirectoryWatchHandler(FileSystemEventHandler):
     """Watches directory for files matching pattern."""
-    
+
     def __init__(self, pattern: str, callback) -> None:
         """Initialize handler.
-        
+
         Args:
             pattern: Glob pattern to match
             callback: Function to call when matching file is created
@@ -35,10 +35,10 @@ class _DirectoryWatchHandler(FileSystemEventHandler):
         super().__init__()
         self._pattern = pattern
         self._callback = callback
-        
+
     def on_created(self, event: FileSystemEvent) -> None:
         """Handle file creation event.
-        
+
         Args:
             event: File system event
         """
@@ -53,21 +53,21 @@ class _DirectoryWatchHandler(FileSystemEventHandler):
 
 class WildcardFileWatcher(QThread):
     """Watches for files matching a glob pattern and switches to latest.
-    
+
     This watcher monitors a directory for files matching a wildcard pattern
     (e.g., "Cook-*.txt") and automatically switches to the newest matching file.
     When a new file appears, it triggers a stream interruption/resumption cycle.
-    
+
     Signals:
         new_lines: Emitted when new lines are read from the current file
         file_switched: Emitted when switching to a new file (old_path, new_path)
         error_occurred: Emitted when an error occurs
     """
-    
+
     new_lines = Signal(str)
     file_switched = Signal(str, str)  # old_path, new_path
     error_occurred = Signal(str)
-    
+
     def __init__(
         self,
         pattern: str,
@@ -77,7 +77,7 @@ class WildcardFileWatcher(QThread):
         tail_lines: int = 200
     ) -> None:
         """Initialize the wildcard watcher.
-        
+
         Args:
             pattern: Glob pattern (e.g., "C:/logs/Cook-*.txt")
             log_manager: Central log manager for publishing events
@@ -96,21 +96,21 @@ class WildcardFileWatcher(QThread):
         self._file_handle = None
         self._tail_only = tail_only
         self._tail_lines = tail_lines
-        
+
         # Validate pattern
         pattern_path = Path(pattern)
         if not pattern_path.parent.exists():
             raise InvalidPathError(f"Parent directory does not exist: {pattern_path.parent}")
-        
+
         # Check if pattern contains wildcards
         if '*' not in pattern and '?' not in pattern:
             raise InvalidPathError(f"Pattern must contain wildcards: {pattern}")
-    
+
     def run(self) -> None:
         """Main thread execution loop."""
         self._running = True
         logger.info(f"Starting wildcard watcher for pattern: {self._pattern}")
-        
+
         try:
             # Find initial file
             latest_file = self._find_latest_matching_file()
@@ -119,91 +119,91 @@ class WildcardFileWatcher(QThread):
                 self._switch_to_file(latest_file, is_initial=True)
             else:
                 logger.info(f"No matching files found for pattern: {self._pattern}")
-            
+
             # Watch directory for new files
             self._watch_directory()
-            
+
             # Keep thread alive
             while self._running:
                 self.msleep(100)
-                
+
                 # Check if current file still exists
                 if self._current_file and not self._current_file.exists():
                     logger.warning(f"Current file deleted: {self._current_file}")
                     self._log_manager.publish_stream_interrupted(
-                        self._path_key, 
+                        self._path_key,
                         f"File deleted: {self._current_file.name}"
                     )
                     self._cleanup_current_file()
-                    
+
                     # Look for another matching file
                     latest_file = self._find_latest_matching_file()
                     if latest_file:
                         self._switch_to_file(latest_file, is_initial=False)
-                
+
                 # Read new content if file is open
                 if self._file_handle and not self._paused:
                     self._read_new_content()
-                    
+
         except Exception as e:
             logger.error(f"Error in wildcard watcher: {e}", exc_info=True)
             self.error_occurred.emit(str(e))
         finally:
             self._cleanup()
-    
+
     def stop(self) -> None:
         """Stop the watcher thread."""
         self._running = False
         logger.info(f"Stopping wildcard watcher for: {self._pattern}")
-    
+
     def pause(self) -> None:
         """Pause reading new content."""
         self._paused = True
         logger.info(f"Paused wildcard watcher for: {self._pattern}")
-    
+
     def resume(self) -> None:
         """Resume reading new content."""
         self._paused = False
         logger.info(f"Resumed wildcard watcher for: {self._pattern}")
-    
+
     def is_paused(self) -> bool:
         """Check if watcher is paused.
-        
+
         Returns:
             True if paused
         """
         return self._paused
-    
+
     def _find_latest_matching_file(self) -> Path | None:
         """Find the most recently modified file matching the pattern.
-        
+
         Returns:
             Path to latest file, or None if no matches
         """
         matching_files = glob.glob(self._pattern)
         if not matching_files:
             return None
-        
+
         # Sort by modification time, newest first
         matching_files.sort(key=lambda f: os.path.getmtime(f), reverse=True)
         latest = Path(matching_files[0])
         logger.debug(f"Latest matching file: {latest} (from {len(matching_files)} matches)")
         return latest
-    
+
     def _switch_to_file(self, new_file: Path, is_initial: bool) -> None:
         """Switch to watching a new file.
-        
+
         Args:
             new_file: Path to new file
             is_initial: True if this is the initial file (no interruption event)
         """
         old_file = self._current_file
-        
+
         # Don't switch if it's the same file
         if old_file and old_file == new_file:
             logger.debug(f"Already watching {new_file}, skipping switch")
             return
-        
+
         # Clean up old file
         if old_file and not is_initial:
             self._cleanup_current_file()
@@ -211,17 +211,17 @@ class WildcardFileWatcher(QThread):
                 self._path_key,
                 f"Switching from {old_file.name} to {new_file.name}"
             )
-        
+
         # Switch to new file
         self._current_file = new_file
         logger.info(f"Switching to file: {new_file}")
-        
+
         try:
             mtime = new_file.stat().st_mtime
             logger.info(f"File details: name={new_file.name}, mtime={mtime}")
         except (FileNotFoundError, PermissionError, OSError) as e:
             logger.warning(f"Cannot stat file {new_file}: {e}")
-        
+
         # Read file content based on mode
         try:
             with open(new_file, "r", encoding="utf-8", errors="replace") as f:
@@ -236,7 +236,7 @@ class WildcardFileWatcher(QThread):
                     # Full log mode: read entire file
                     content = f.read()
                     logger.info(f"Full log mode: read entire file {new_file}")
-                
+
                 if content:
                     self._log_manager.publish_content(self._path_key, content)
                     if not self._paused:
@@ -249,7 +249,7 @@ class WildcardFileWatcher(QThread):
             logger.error(f"Unexpected error reading file {new_file}: {e}", exc_info=True)
             self.error_occurred.emit(f"Error reading file: {e}")
             return
-        
+
         # Open for tailing
         try:
             self._file_handle = open(new_file, "r", encoding="utf-8", errors="replace")
@@ -259,7 +259,7 @@ class WildcardFileWatcher(QThread):
             logger.error(f"Error opening file for tailing: {e}")
             self.error_occurred.emit(f"Error opening file: {e}")
             return
-        
+
         # Publish events
         if is_initial:
             # For initial file, publish a special message to set the filename in status
@@ -271,40 +271,40 @@ class WildcardFileWatcher(QThread):
         else:
             self._log_manager.publish_stream_resumed(self._path_key)
             self.file_switched.emit(str(old_file) if old_file else "", str(new_file))
-    
+
     def _watch_directory(self) -> None:
         """Watch directory for new matching files."""
         pattern_path = Path(self._pattern)
         directory = str(pattern_path.parent)
-        
+
         handler = _DirectoryWatchHandler(self._pattern, self._on_new_file_created)
         self._observer = Observer()
         self._observer.schedule(handler, directory, recursive=False)
         self._observer.start()
         logger.info(f"Watching directory: {directory}")
-    
+
     def _on_new_file_created(self, file_path: str) -> None:
         """Callback when a new matching file is created.
-        
+
         Args:
             file_path: Path to new file
         """
         new_file = Path(file_path)
-        
+
         # Wait a bit for file to be fully created and accessible
         time.sleep(0.1)
-        
+
         # Verify file exists and is accessible
         if not new_file.exists():
             logger.warning(f"New file detected but doesn't exist yet: {new_file}")
             return
-        
+
         try:
             new_mtime = new_file.stat().st_mtime
         except (FileNotFoundError, PermissionError, OSError) as e:
             logger.warning(f"Cannot access new file {new_file}: {e}")
             return
-        
+
         # Check if this file is newer than current
         if self._current_file:
             try:
@@ -323,12 +323,12 @@ class WildcardFileWatcher(QThread):
             # No current file, switch to this one
             logger.info(f"No current file, switching to: {new_file}")
             self._switch_to_file(new_file, is_initial=False)
-    
+
     def _read_new_content(self) -> None:
         """Read new content from current file."""
         if not self._file_handle:
             return
-        
+
         try:
             lines = self._file_handle.readlines()
             if lines:
@@ -339,7 +339,7 @@ class WildcardFileWatcher(QThread):
         except Exception as e:
             logger.error(f"Error reading content: {e}")
             self.error_occurred.emit(f"Error reading file: {e}")
-    
+
     def _cleanup_current_file(self) -> None:
         """Clean up current file handle."""
         if self._file_handle:
@@ -348,13 +348,13 @@ class WildcardFileWatcher(QThread):
             except Exception as e:
                 logger.error(f"Error closing file: {e}")
             self._file_handle = None
-    
+
     def _cleanup(self) -> None:
         """Clean up all resources."""
         logger.debug(f"Cleanup called for pattern: {self._pattern}")
-        
+
         self._cleanup_current_file()
-        
+
         if self._observer:
             try:
                 if self._observer.is_alive():

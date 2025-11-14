@@ -3,8 +3,6 @@
 import logging
 import threading
 from collections import deque
-from pathlib import Path
-from typing import Callable
 from typing import Protocol
 
 from PySide6.QtCore import QObject
@@ -18,7 +16,7 @@ class LogSubscriber(Protocol):
 
     def on_log_content(self, path: str, content: str) -> None:
         """Called when new log content is available.
-        
+
         Args:
             path: Log file path
             content: New content to append
@@ -27,24 +25,24 @@ class LogSubscriber(Protocol):
 
     def on_log_cleared(self, path: str) -> None:
         """Called when log buffer is cleared.
-        
+
         Args:
             path: Log file path
         """
         ...
-    
+
     def on_stream_interrupted(self, path: str, reason: str) -> None:
         """Called when the log stream is interrupted (file deleted/truncated).
-        
+
         Args:
             path: Log file path
             reason: Reason for interruption (e.g., "File deleted", "File truncated")
         """
         ...
-    
+
     def on_stream_resumed(self, path: str) -> None:
         """Called when the log stream resumes (file recreated).
-        
+
         Args:
             path: Log file path
         """
@@ -53,14 +51,14 @@ class LogSubscriber(Protocol):
 
 class LogBuffer:
     """Maintains a circular buffer of log lines for a single file.
-    
+
     This buffer stores the most recent N lines and provides the full
     content on demand for new subscribers.
     """
 
     def __init__(self, max_lines: int = 10000) -> None:
         """Initialize the log buffer.
-        
+
         Args:
             max_lines: Maximum number of lines to retain
         """
@@ -70,7 +68,7 @@ class LogBuffer:
 
     def append(self, content: str) -> None:
         """Append new content to the buffer.
-        
+
         Args:
             content: New content (may contain multiple lines)
         """
@@ -81,7 +79,7 @@ class LogBuffer:
 
     def get_content(self) -> str:
         """Get the full buffered content.
-        
+
         Returns:
             All buffered lines as a single string
         """
@@ -94,7 +92,7 @@ class LogBuffer:
 
     def __len__(self) -> int:
         """Get the number of lines in the buffer.
-        
+
         Returns:
             Number of buffered lines
         """
@@ -103,10 +101,10 @@ class LogBuffer:
 
 class LogManager(QObject):
     """Central manager for log content and event distribution.
-    
+
     This class maintains buffers for all tracked log files and publishes
     events to registered subscribers using a publisher-subscriber pattern.
-    
+
     Signals:
         log_content_available: Emitted when new content is available (path, content)
         log_cleared: Emitted when a log buffer is cleared (path)
@@ -128,7 +126,7 @@ class LogManager(QObject):
         self._buffers: dict[str, LogBuffer] = {}
         self._subscribers: dict[str, list[LogSubscriber]] = {}
         self._lock = threading.RLock()  # Protect dict access
-        
+
         # Connect signals to internal handlers
         self.log_content_available.connect(self._on_content_available)
         self.log_cleared.connect(self._on_cleared)
@@ -137,7 +135,7 @@ class LogManager(QObject):
 
     def register_log(self, path: str, max_lines: int = 10000) -> None:
         """Register a new log file for tracking.
-        
+
         Args:
             path: Log file path
             max_lines: Maximum lines to buffer
@@ -151,7 +149,7 @@ class LogManager(QObject):
 
     def unregister_log(self, path: str) -> None:
         """Unregister a log file.
-        
+
         Args:
             path: Log file path
         """
@@ -162,9 +160,9 @@ class LogManager(QObject):
 
     def subscribe(self, path: str, subscriber: LogSubscriber) -> None:
         """Subscribe to log events for a specific file.
-        
+
         The subscriber will immediately receive the current buffer content.
-        
+
         Args:
             path: Log file path
             subscriber: Subscriber to register
@@ -186,7 +184,7 @@ class LogManager(QObject):
 
     def unsubscribe(self, path: str, subscriber: LogSubscriber) -> None:
         """Unsubscribe from log events.
-        
+
         Args:
             path: Log file path
             subscriber: Subscriber to remove
@@ -197,7 +195,7 @@ class LogManager(QObject):
 
     def publish_content(self, path: str, content: str) -> None:
         """Publish new log content (thread-safe via signal).
-        
+
         Args:
             path: Log file path
             content: New content to publish
@@ -206,7 +204,7 @@ class LogManager(QObject):
 
     def publish_file_created(self, path: str) -> None:
         """Publish file creation event.
-        
+
         Args:
             path: Log file path
         """
@@ -215,26 +213,26 @@ class LogManager(QObject):
 
     def publish_file_deleted(self, path: str) -> None:
         """Publish file deletion event.
-        
+
         Args:
             path: Log file path
         """
         self.log_file_deleted.emit(path)
         logger.info(f"Published file deleted event: {path}")
-    
+
     def publish_stream_interrupted(self, path: str, reason: str) -> None:
         """Publish stream interruption event.
-        
+
         Args:
             path: Log file path
             reason: Reason for interruption
         """
         self.stream_interrupted.emit(path, reason)
         logger.info(f"Published stream interrupted event: {path} - {reason}")
-    
+
     def publish_stream_resumed(self, path: str) -> None:
         """Publish stream resumed event.
-        
+
         Args:
             path: Log file path
         """
@@ -243,7 +241,7 @@ class LogManager(QObject):
 
     def clear_buffer(self, path: str) -> None:
         """Clear the buffer for a log file.
-        
+
         Args:
             path: Log file path
         """
@@ -251,12 +249,20 @@ class LogManager(QObject):
             self._buffers[path].clear()
             self.log_cleared.emit(path)
 
-    def get_buffer_content(self, path: str) -> str:
-        """Get the current buffer content for a log file.
-        
+    def clear_log(self, path: str) -> None:
+        """Clear the buffer for a log file (alias for clear_buffer).
+
         Args:
             path: Log file path
-            
+        """
+        self.clear_buffer(path)
+
+    def get_buffer_content(self, path: str) -> str:
+        """Get the current buffer content for a log file.
+
+        Args:
+            path: Log file path
+
         Returns:
             Buffered content or empty string
         """
@@ -265,7 +271,7 @@ class LogManager(QObject):
 
     def _on_content_available(self, path: str, content: str) -> None:
         """Internal handler for content available signal.
-        
+
         Args:
             path: Log file path
             content: New content
@@ -277,7 +283,7 @@ class LogManager(QObject):
                 buffer.append(content)
                 logger.debug(f"Added {len(content)} chars to buffer for {path}, buffer now has {len(buffer)} lines")
             else:
-                logger.error(f"No buffer found for path")
+                logger.error("No buffer found for path")
                 logger.error(f"Incoming: {repr(path)}")
                 if self._buffers:
                     first_key = list(self._buffers.keys())[0]
@@ -290,7 +296,7 @@ class LogManager(QObject):
 
             # Notify subscribers
             subscribers = self._subscribers.get(path, []).copy()  # Copy to avoid modification during iteration
-        
+
         logger.debug(f"Notifying {len(subscribers)} subscribers for {path}")
         for subscriber in subscribers:
             try:
@@ -300,7 +306,7 @@ class LogManager(QObject):
 
     def _on_cleared(self, path: str) -> None:
         """Internal handler for cleared signal.
-        
+
         Args:
             path: Log file path
         """
@@ -311,32 +317,32 @@ class LogManager(QObject):
                 subscriber.on_log_cleared(path)
             except Exception as e:
                 logger.error(f"Error notifying subscriber: {e}", exc_info=True)
-    
+
     def _on_stream_interrupted(self, path: str, reason: str) -> None:
         """Internal handler for stream interrupted signal.
-        
+
         Args:
             path: Log file path
             reason: Reason for interruption
         """
         with self._lock:
             subscribers = self._subscribers.get(path, []).copy()
-        
+
         for subscriber in subscribers:
             try:
                 subscriber.on_stream_interrupted(path, reason)
             except Exception as e:
                 logger.error(f"Error notifying subscriber: {e}", exc_info=True)
-    
+
     def _on_stream_resumed(self, path: str) -> None:
         """Internal handler for stream resumed signal.
-        
+
         Args:
             path: Log file path
         """
         with self._lock:
             subscribers = self._subscribers.get(path, []).copy()
-        
+
         for subscriber in subscribers:
             try:
                 subscriber.on_stream_resumed(path)

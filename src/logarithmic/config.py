@@ -11,7 +11,7 @@ from pydantic_settings import SettingsConfigDict
 
 class LogarithmicConfig(BaseSettings):
     """Application configuration loaded from environment variables.
-    
+
     All configuration values can be overridden via environment variables
     prefixed with LOGARITHMIC_ (e.g., LOGARITHMIC_LOG_LEVEL=DEBUG).
     """
@@ -31,7 +31,10 @@ class LogarithmicConfig(BaseSettings):
     )
     log_format: str = Field(
         default="json",
-        description="Log format: 'json' for structured logging or 'text' for human-readable",
+        description=(
+            "Log format: 'json' for structured logging or "
+            "'text' for human-readable"
+        ),
     )
 
     # MCP Server Configuration
@@ -89,7 +92,7 @@ _config: LogarithmicConfig | None = None
 
 def get_config() -> LogarithmicConfig:
     """Get the global configuration instance.
-    
+
     Returns:
         The application configuration singleton.
     """
@@ -101,7 +104,7 @@ def get_config() -> LogarithmicConfig:
 
 def reload_config() -> LogarithmicConfig:
     """Reload configuration from environment.
-    
+
     Returns:
         The reloaded configuration instance.
     """

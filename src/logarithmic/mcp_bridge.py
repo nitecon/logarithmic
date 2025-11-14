@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class McpBridge(LogSubscriber):
     """Thread-safe bridge between LogManager and MCP Server.
-    
+
     This class subscribes to all tracked logs and maintains a thread-safe
     cache of log content that can be accessed by the MCP server running
     on a different thread/event loop.
@@ -21,7 +21,7 @@ class McpBridge(LogSubscriber):
 
     def __init__(self, log_manager: LogManager, settings: Settings) -> None:
         """Initialize the MCP bridge.
-        
+
         Args:
             log_manager: Central log manager instance
             settings: Settings manager for metadata
@@ -29,47 +29,47 @@ class McpBridge(LogSubscriber):
         self._log_manager = log_manager
         self._settings = settings
         self._lock = threading.RLock()
-        
+
         # Cache of log content: path_key -> content
         self._log_cache: dict[str, str] = {}
-        
+
         # Track subscriptions
         self._subscribed_paths: set[str] = set()
-        
+
         # Callbacks for MCP server to be notified of updates
         self._update_callbacks: list[callable] = []
 
     def subscribe_to_log(self, path_key: str) -> None:
         """Subscribe to a log source.
-        
+
         Args:
             path_key: Unique identifier for the log source
         """
         if path_key in self._subscribed_paths:
             return
-        
+
         with self._lock:
             self._subscribed_paths.add(path_key)
             self._log_cache[path_key] = ""
-        
+
         # Subscribe to log manager
         self._log_manager.subscribe(path_key, self)
         logger.info(f"MCP Bridge subscribed to: {path_key}")
 
     def unsubscribe_from_log(self, path_key: str) -> None:
         """Unsubscribe from a log source.
-        
+
         Args:
             path_key: Unique identifier for the log source
         """
         if path_key not in self._subscribed_paths:
             return
-        
+
         with self._lock:
             self._subscribed_paths.discard(path_key)
             if path_key in self._log_cache:
                 del self._log_cache[path_key]
-        
+
         self._log_manager.unsubscribe(path_key, self)
         logger.info(f"MCP Bridge unsubscribed from: {path_key}")
 
@@ -81,10 +81,10 @@ class McpBridge(LogSubscriber):
 
     def get_log_content(self, path_key: str) -> str:
         """Get cached log content (thread-safe).
-        
+
         Args:
             path_key: Unique identifier for the log source
-            
+
         Returns:
             Cached log content or empty string
         """
@@ -93,7 +93,7 @@ class McpBridge(LogSubscriber):
 
     def get_all_logs(self) -> dict[str, dict[str, Any]]:
         """Get all tracked logs with metadata.
-        
+
         Returns:
             Dictionary mapping path_key to log info (id, description, content)
         """
@@ -111,10 +111,10 @@ class McpBridge(LogSubscriber):
 
     def get_log_info(self, log_id: str) -> dict[str, Any] | None:
         """Get information about a specific log by ID.
-        
+
         Args:
             log_id: Log ID (from metadata) or path_key
-            
+
         Returns:
             Log information dictionary or None if not found
         """
@@ -129,7 +129,7 @@ class McpBridge(LogSubscriber):
                         "content": self._log_cache.get(path_key, ""),
                         "path": path_key
                     }
-            
+
             # Fallback: try as path_key
             if log_id in self._subscribed_paths:
                 metadata = self._settings.get_log_metadata(log_id)
@@ -139,12 +139,12 @@ class McpBridge(LogSubscriber):
                     "content": self._log_cache.get(log_id, ""),
                     "path": log_id
                 }
-            
+
             return None
 
     def register_update_callback(self, callback: callable) -> None:
         """Register a callback to be notified of log updates.
-        
+
         Args:
             callback: Callable that takes (path_key, content) as arguments
         """
@@ -154,7 +154,7 @@ class McpBridge(LogSubscriber):
 
     def unregister_update_callback(self, callback: callable) -> None:
         """Unregister an update callback.
-        
+
         Args:
             callback: Callback to remove
         """
@@ -166,7 +166,7 @@ class McpBridge(LogSubscriber):
 
     def on_log_content(self, path: str, content: str) -> None:
         """Called when new log content is available.
-        
+
         Args:
             path: Log file path
             content: New content to append
@@ -176,10 +176,10 @@ class McpBridge(LogSubscriber):
                 self._log_cache[path] += content
             else:
                 self._log_cache[path] = content
-            
+
             # Notify callbacks
             callbacks = self._update_callbacks.copy()
-        
+
         for callback in callbacks:
             try:
                 callback(path, content)
@@ -188,7 +188,7 @@ class McpBridge(LogSubscriber):
 
     def on_log_cleared(self, path: str) -> None:
         """Called when log buffer is cleared.
-        
+
         Args:
             path: Log file path
         """
@@ -199,7 +199,7 @@ class McpBridge(LogSubscriber):
 
     def on_stream_interrupted(self, path: str, reason: str) -> None:
         """Called when the log stream is interrupted.
-        
+
         Args:
             path: Log file path
             reason: Reason for interruption
@@ -208,7 +208,7 @@ class McpBridge(LogSubscriber):
 
     def on_stream_resumed(self, path: str) -> None:
         """Called when the log stream resumes.
-        
+
         Args:
             path: Log file path
         """

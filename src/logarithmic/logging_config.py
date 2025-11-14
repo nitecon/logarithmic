@@ -16,17 +16,17 @@ from logarithmic.config import get_config
 
 class JsonFormatter(logging.Formatter):
     """Custom JSON formatter for structured logging.
-    
+
     Outputs log records as JSON objects with consistent fields for
     observability tools like Datadog, Splunk, or OpenTelemetry.
     """
 
     def format(self, record: logging.LogRecord) -> str:
         """Format a log record as JSON.
-        
+
         Args:
             record: The log record to format
-            
+
         Returns:
             JSON-formatted log string
         """
@@ -83,7 +83,7 @@ class JsonFormatter(logging.Formatter):
 
 def configure_logging() -> None:
     """Configure application-wide logging based on config settings.
-    
+
     Sets up either JSON structured logging or human-readable text logging
     based on the LOG_FORMAT configuration value.
     """
@@ -130,13 +130,13 @@ def configure_logging() -> None:
 
 def get_logger(name: str) -> logging.Logger:
     """Get a logger instance with the given name.
-    
+
     This is a convenience wrapper around logging.getLogger that ensures
     logging is configured before returning the logger.
-    
+
     Args:
         name: The name for the logger (typically __name__)
-        
+
     Returns:
         A configured logger instance
     """

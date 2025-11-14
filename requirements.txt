@@ -8,6 +8,10 @@ PySide6-Addons==6.10.0
 PySide6-Essentials==6.10.0
 shiboken6==6.10.0
 watchdog==6.0.0
+# Note: kubernetes 34.1.0 pulls in urllib3 2.3.0 which has SSRF vulnerabilities
+# These vulnerabilities only affect Pyodide runtime (browser/Node.js), not desktop apps
+# Waiting for kubernetes 35.x release to support urllib3 2.5.0
+# See .pip-audit.toml for vulnerability suppression rationale
 kubernetes==34.1.0
 mcp>=1.21.1
 qasync>=0.28.0

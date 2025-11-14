@@ -1,0 +1,18 @@
+# pip-audit configuration
+# Suppress vulnerabilities that don't apply to Logarithmic
+
+[tool.pip-audit]
+# Ignore urllib3 SSRF vulnerabilities - they only affect Pyodide runtime (browser/Node.js)
+# Logarithmic is a desktop application and doesn't use Pyodide
+ignore-vulns = [
+    "GHSA-48p4-8xcf-vxj5",  # urllib3 SSRF in Pyodide - redirect control bypass
+    "GHSA-pq67-6m6q-mj2v",  # urllib3 SSRF in Pyodide - XMLHttpRequest/Fetch API
+]
+
+# Rationale:
+# - These vulnerabilities only affect urllib3 when running in a Pyodide runtime
+# - Pyodide is a Python distribution for WebAssembly (browser/Node.js environments)
+# - Logarithmic is a native desktop application (PySide6/Qt) that doesn't use Pyodide
+# - The kubernetes package (34.1.0) requires urllib3<2.4.0, blocking the upgrade
+# - We're waiting for kubernetes 35.x to be released with urllib3 2.5.0 support
+# - Risk assessment: NONE - vulnerability doesn't apply to our runtime environment

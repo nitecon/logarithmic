@@ -10,6 +10,8 @@ requires-python = ">=3.11"
 dependencies = [
     "PySide6>=6.10.0",
     "watchdog>=5.0.0",
+    "mcp>=1.0.0",
+    "qasync>=0.24.0",
 ]
 
 [project.optional-dependencies]

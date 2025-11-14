@@ -76,7 +76,13 @@ class Settings:
                     "warning_color": "#FFA500",    # Orange for warnings
                     "verbose_color": "#888888",    # Gray for verbose
                     "default_color": "#CCCCCC"     # Default text color
-                }
+                },
+                "mcp_server": {  # MCP server settings
+                    "enabled": False,
+                    "binding_address": "127.0.0.1",
+                    "port": 3000
+                },
+                "log_metadata": {}  # path_key -> {id, description} mapping
             }
             return
 
@@ -404,3 +410,97 @@ class Settings:
             self._data["theme"] = {}
         self._data["theme"][color_type] = color
         self._save()
+    
+    # MCP Server Settings
+    
+    def get_mcp_server_settings(self) -> dict[str, Any]:
+        """Get MCP server settings.
+        
+        Returns:
+            Dictionary with MCP server configuration
+        """
+        return self._data.get("mcp_server", {
+            "enabled": False,
+            "binding_address": "127.0.0.1",
+            "port": 3000
+        })
+    
+    def set_mcp_server_enabled(self, enabled: bool) -> None:
+        """Enable or disable the MCP server.
+        
+        Args:
+            enabled: Whether MCP server should be enabled
+        """
+        if "mcp_server" not in self._data:
+            self._data["mcp_server"] = {}
+        self._data["mcp_server"]["enabled"] = enabled
+        self._save()
+    
+    def set_mcp_server_binding_address(self, address: str) -> None:
+        """Set MCP server binding address.
+        
+        Args:
+            address: IP address to bind to (e.g., "127.0.0.1")
+        """
+        if "mcp_server" not in self._data:
+            self._data["mcp_server"] = {}
+        self._data["mcp_server"]["binding_address"] = address
+        self._save()
+    
+    def set_mcp_server_port(self, port: int) -> None:
+        """Set MCP server port.
+        
+        Args:
+            port: Port number to bind to
+        """
+        if "mcp_server" not in self._data:
+            self._data["mcp_server"] = {}
+        self._data["mcp_server"]["port"] = port
+        self._save()
+    
+    # Log Metadata Management
+    
+    def get_log_metadata(self, path_key: str) -> dict[str, str] | None:
+        """Get metadata for a log source.
+        
+        Args:
+            path_key: Unique identifier for the log source
+            
+        Returns:
+            Dictionary with id and description, or None if not set
+        """
+        return self._data.get("log_metadata", {}).get(path_key)
+    
+    def set_log_metadata(self, path_key: str, log_id: str, description: str) -> None:
+        """Set metadata for a log source.
+        
+        Args:
+            path_key: Unique identifier for the log source
+            log_id: Stable ID for the log source
+            description: Human-readable description
+        """
+        if "log_metadata" not in self._data:
+            self._data["log_metadata"] = {}
+        self._data["log_metadata"][path_key] = {
+            "id": log_id,
+            "description": description
+        }
+        self._save()
+    
+    def remove_log_metadata(self, path_key: str) -> None:
+        """Remove metadata for a log source.
+        
+        Args:
+            path_key: Unique identifier for the log source
+        """
+        if "log_metadata" in self._data and path_key in self._data["log_metadata"]:
+            del self._data["log_metadata"][path_key]
+            self._save()
+    
+    def get_all_log_metadata(self) -> dict[str, dict[str, str]]:
+        """Get all log metadata.
+        
+        Returns:
+            Dictionary mapping path_key to metadata dict
+        """
+        return self._data.get("log_metadata", {})

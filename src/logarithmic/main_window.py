@@ -8,6 +8,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QDragEnterEvent
 from PySide6.QtGui import QDropEvent
 from PySide6.QtWidgets import QButtonGroup
+from PySide6.QtWidgets import QCheckBox
 from PySide6.QtWidgets import QComboBox
 from PySide6.QtWidgets import QInputDialog
 from PySide6.QtWidgets import QMenu
@@ -36,6 +37,8 @@ from logarithmic.k8s_selector_dialog import K8sSelectorDialog
 from logarithmic.log_group_window import LogGroupWindow
 from logarithmic.log_manager import LogManager
 from logarithmic.log_viewer_window import LogViewerWindow
+from logarithmic.mcp_bridge import McpBridge
+from logarithmic.mcp_server import LogarithmicMcpServer
 from logarithmic.providers import FileProvider
 from logarithmic.providers import LogProvider
 from logarithmic.providers import ProviderConfig
@@ -207,6 +210,10 @@ class MainWindow(QMainWindow):
         # Settings manager
         self._settings = Settings()
         
+        # MCP Server components
+        self._mcp_bridge: McpBridge | None = None
+        self._mcp_server: LogarithmicMcpServer | None = None
+        
         # Store references to UI elements for dynamic font sizing
         self._ui_elements: list[QWidget] = []
         
@@ -218,6 +225,7 @@ class MainWindow(QMainWindow):
         
         self._setup_ui()
         self._restore_session()
+        self._initialize_mcp_server()
         self._restore_main_window_position()
         self._load_font_sizes()
         
@@ -474,6 +482,75 @@ class MainWindow(QMainWindow):
         self._ui_elements.append(self.set_all_sizes_button)
         
         settings_layout.addWidget(window_mgmt_frame)
+        
+        # MCP Server section
+        mcp_frame = QFrame()
+        mcp_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        mcp_layout = QVBoxLayout(mcp_frame)
+        
+        self.mcp_title = QLabel("MCP Server")
+        self.mcp_title.setFont(self._fonts.get_ui_font(12, bold=True))
+        mcp_layout.addWidget(self.mcp_title)
+        self._ui_elements.append(self.mcp_title)
+        
+        mcp_desc = QLabel("Enable Model Context Protocol server to expose logs to AI agents")
+        mcp_desc.setFont(self._fonts.get_ui_font(9))
+        mcp_desc.setStyleSheet("color: gray;")
+        mcp_layout.addWidget(mcp_desc)
+        self._ui_elements.append(mcp_desc)
+        
+        # Enable MCP checkbox
+        self.mcp_enabled_checkbox = QCheckBox("Enable MCP Server")
+        self.mcp_enabled_checkbox.setFont(self._fonts.get_ui_font(10))
+        mcp_settings = self._settings.get_mcp_server_settings()
+        self.mcp_enabled_checkbox.setChecked(mcp_settings.get("enabled", False))
+        self.mcp_enabled_checkbox.stateChanged.connect(self._on_mcp_enabled_changed)
+        mcp_layout.addWidget(self.mcp_enabled_checkbox)
+        self._ui_elements.append(self.mcp_enabled_checkbox)
+        
+        # Binding address
+        binding_layout = QHBoxLayout()
+        self.mcp_binding_label = QLabel("Binding Address:")
+        self.mcp_binding_label.setFont(self._fonts.get_ui_font(10))
+        binding_layout.addWidget(self.mcp_binding_label)
+        self._ui_elements.append(self.mcp_binding_label)
+        
+        self.mcp_binding_input = QLineEdit()
+        self.mcp_binding_input.setFont(self._fonts.get_ui_font(10))
+        self.mcp_binding_input.setText(mcp_settings.get("binding_address", "127.0.0.1"))
+        self.mcp_binding_input.setPlaceholderText("127.0.0.1")
+        self.mcp_binding_input.textChanged.connect(self._on_mcp_binding_changed)
+        binding_layout.addWidget(self.mcp_binding_input)
+        self._ui_elements.append(self.mcp_binding_input)
+        
+        mcp_layout.addLayout(binding_layout)
+        
+        # Port
+        port_layout = QHBoxLayout()
+        self.mcp_port_label = QLabel("Port:")
+        self.mcp_port_label.setFont(self._fonts.get_ui_font(10))
+        port_layout.addWidget(self.mcp_port_label)
+        self._ui_elements.append(self.mcp_port_label)
+        
+        self.mcp_port_spin = QSpinBox()
+        self.mcp_port_spin.setFont(self._fonts.get_ui_font(10))
+        self.mcp_port_spin.setRange(1024, 65535)
+        self.mcp_port_spin.setValue(mcp_settings.get("port", 3000))
+        self.mcp_port_spin.valueChanged.connect(self._on_mcp_port_changed)
+        port_layout.addWidget(self.mcp_port_spin)
+        self._ui_elements.append(self.mcp_port_spin)
+        
+        port_layout.addStretch()
+        mcp_layout.addLayout(port_layout)
+        
+        # Restart note
+        restart_note = QLabel("Note: Changes require application restart to take effect")
+        restart_note.setFont(self._fonts.get_ui_font(8))
+        restart_note.setStyleSheet("color: orange; font-style: italic;")
+        mcp_layout.addWidget(restart_note)
+        self._ui_elements.append(restart_note)
+        
+        settings_layout.addWidget(mcp_frame)
         settings_layout.addStretch()
         
         self.tabs.addTab(settings_tab, "⚙️ Settings")
@@ -698,6 +775,10 @@ class MainWindow(QMainWindow):
             # Register with log manager
             self._log_manager.register_log(path_key)
             
+            # Subscribe MCP bridge if enabled
+            if self._mcp_bridge:
+                self._mcp_bridge.subscribe_to_log(path_key)
+            
             # Create and start provider
             provider = self._provider_registry.create_provider(config, self._log_manager, path_key)
             provider.error_occurred.connect(lambda err: self._on_watcher_error(path_key, err))
@@ -740,6 +821,10 @@ class MainWindow(QMainWindow):
             
             # Register with log manager
             self._log_manager.register_log(path_key)
+            
+            # Subscribe MCP bridge if enabled
+            if self._mcp_bridge:
+                self._mcp_bridge.subscribe_to_log(path_key)
             
             # Create and start provider
             provider = self._provider_registry.create_provider(config, self._log_manager, path_key)
@@ -817,6 +902,10 @@ class MainWindow(QMainWindow):
             
             # Register with log manager
             self._log_manager.register_log(path_key)
+            
+            # Subscribe MCP bridge if enabled
+            if self._mcp_bridge:
+                self._mcp_bridge.subscribe_to_log(path_key)
             
             # Create and start provider
             provider = self._provider_registry.create_provider(config, self._log_manager, path_key)
@@ -1236,6 +1325,10 @@ class MainWindow(QMainWindow):
         # Unregister from log manager
         self._log_manager.unregister_log(path_key)
         
+        # Unsubscribe from MCP bridge if enabled
+        if self._mcp_bridge:
+            self._mcp_bridge.unsubscribe_from_log(path_key)
+        
         # Remove from settings
         self._settings.remove_tracked_log(path_key)
         
@@ -1622,6 +1715,42 @@ class MainWindow(QMainWindow):
             self._pending_window_opens.add(path_str)
             logger.info(f"Will auto-open window for: {path_str}")
     
+    def _initialize_mcp_server(self) -> None:
+        """Initialize and start MCP server if enabled in settings."""
+        mcp_settings = self._settings.get_mcp_server_settings()
+        
+        if not mcp_settings.get("enabled", False):
+            logger.info("MCP server is disabled in settings")
+            return
+        
+        try:
+            # Create MCP bridge
+            self._mcp_bridge = McpBridge(self._log_manager, self._settings)
+            
+            # Subscribe to all tracked logs
+            self._mcp_bridge.subscribe_to_all_tracked_logs()
+            
+            # Create and start MCP server
+            binding_address = mcp_settings.get("binding_address", "127.0.0.1")
+            port = mcp_settings.get("port", 3000)
+            
+            self._mcp_server = LogarithmicMcpServer(
+                self._mcp_bridge,
+                host=binding_address,
+                port=port
+            )
+            
+            self._mcp_server.start()
+            logger.info(f"MCP server started on {binding_address}:{port}")
+            
+        except Exception as e:
+            logger.error(f"Failed to start MCP server: {e}", exc_info=True)
+            QMessageBox.warning(
+                self,
+                "MCP Server Error",
+                f"Failed to start MCP server: {e}\n\nThe application will continue without MCP support."
+            )
+    
     def _on_reset_session(self) -> None:
         """Handle new session button click - clears everything and starts fresh."""
         reply = QMessageBox.question(
@@ -1902,6 +2031,11 @@ class MainWindow(QMainWindow):
             event: Close event
         """
         logger.info("Main window closing, stopping all providers and watchers...")
+        
+        # Stop MCP server
+        if self._mcp_server and self._mcp_server.is_running():
+            logger.info("Stopping MCP server...")
+            self._mcp_server.stop()
         
         # Stop all providers
         for path_key, provider in self._providers.items():
@@ -2214,3 +2348,34 @@ class MainWindow(QMainWindow):
         # Update all group windows
         for group_window in self._group_windows.values():
             group_window.set_status_font_size(size)
+    
+    # MCP Server Settings Handlers
+    
+    def _on_mcp_enabled_changed(self, state: int) -> None:
+        """Handle MCP server enabled checkbox change.
+        
+        Args:
+            state: Checkbox state (Qt.CheckState)
+        """
+        enabled = state == Qt.CheckState.Checked.value
+        self._settings.set_mcp_server_enabled(enabled)
+        logger.info(f"MCP server enabled changed to {enabled}")
+    
+    def _on_mcp_binding_changed(self, text: str) -> None:
+        """Handle MCP server binding address change.
+        
+        Args:
+            text: New binding address
+        """
+        if text.strip():
+            self._settings.set_mcp_server_binding_address(text.strip())
+            logger.info(f"MCP server binding address changed to {text.strip()}")
+    
+    def _on_mcp_port_changed(self, port: int) -> None:
+        """Handle MCP server port change.
+        
+        Args:
+            port: New port number
+        """
+        self._settings.set_mcp_server_port(port)
+        logger.info(f"MCP server port changed to {port}")

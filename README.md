@@ -1,15 +1,11 @@
-<div align="center">
-  <img src="logo-256.png" alt="Logarithmic Logo" width="256">
-  
-  # Logarithmic
+# Logarithmic
 
-  [![Python](https://img.shields.io/badge/Python-3.13%2B-blue)](https://www.python.org/)
-  [![PySide6](https://img.shields.io/badge/PySide6-6.10.0-green)](https://pypi.org/project/PySide6/)
-  [![License](https://img.shields.io/badge/License-Apache%202.0-blue)](LICENSE)
-  [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
+[![Python](https://img.shields.io/badge/Python-3.13%2B-blue)](https://www.python.org/)
+[![PySide6](https://img.shields.io/badge/PySide6-6.10.0-green)](https://pypi.org/project/PySide6/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
 
-  **The ultimate cross-platform log tailing application with intelligent grouping, syntax highlighting, and session management.**
-</div>
+**The ultimate cross-platform log tailing application with intelligent grouping, syntax highlighting, and session management.**
 
 ![Main Window](images/main_window.png)
 
@@ -40,10 +36,19 @@
 - **Tabbed View** - View multiple logs in tabs with individual controls
 - **Persistent Settings** - All preferences, window positions, and sessions saved automatically
 
+### 🤖 **AI Integration (NEW!)**
+- **MCP Server** - Built-in Model Context Protocol server for AI agent integration
+- **Claude Desktop Support** - Connect Claude to your logs for intelligent analysis
+- **Log Metadata** - Add human-readable IDs and descriptions for better AI understanding
+- **Search & Query Tools** - AI agents can list, search, and retrieve log content
+- **Thread-Safe Architecture** - MCP server runs asynchronously without blocking the UI
+
 ## Quick Links
 
 - **[Release Process](.github/RELEASE.md)** - How to build and release
 - **[Coding Guidelines](Docs/CodingGuidelines.md)** - Python development standards
+- **[MCP Server Quick Start](Docs/MCP_QUICKSTART.md)** - Get started with AI integration
+- **[MCP Server Details](Docs/MCP_Details.md)** - Technical documentation for MCP server
 
 ## 📸 Screenshots
 
@@ -58,6 +63,26 @@
 ### Grouped Logs - Combined View
 ![Grouped Combined](images/grouped_combined.png)
 *Interleaved log streams with source labels for easy correlation*
+
+## 🤖 AI Integration with MCP Server
+
+Logarithmic now includes a built-in **Model Context Protocol (MCP) server** that allows AI agents like Claude Desktop to directly access and analyze your logs!
+
+### Quick Start
+
+1. **Enable MCP Server**: Go to Settings tab → Check "Enable MCP Server"
+2. **Restart Application**: Changes take effect after restart
+3. **Configure Claude Desktop**: Add Logarithmic to your Claude Desktop MCP servers
+4. **Ask Claude**: "List all available logs" or "Search for errors in my application logs"
+
+### What You Can Do
+
+- 📋 **List Logs**: AI can see all your tracked logs with descriptions
+- 🔍 **Search**: Find patterns across all logs instantly
+- 📖 **Read Content**: AI can retrieve and analyze full log content
+- 🐛 **Debug**: Ask AI to find errors, analyze patterns, or suggest fixes
+
+**Learn More**: See [MCP Quick Start Guide](Docs/MCP_QUICKSTART.md) for detailed setup instructions.
 
 ## 📦 Installation
 
@@ -180,6 +205,10 @@ Customize your experience:
 - **Log Content Font Size**: 6-24pt for log text
 - **UI Elements Font Size**: 6-18pt for buttons and labels
 - **Status Bar Font Size**: 6-14pt for status text
+- **MCP Server**: Enable AI agent integration (see [MCP Quick Start](Docs/MCP_QUICKSTART.md))
+  - Enable/disable MCP server
+  - Configure binding address (default: 127.0.0.1)
+  - Configure port (default: 3000)
 - **Theme Colors**: Customize error, warning, verbose, and default colors (coming soon)
 
 ### Keyboard Shortcuts
@@ -214,6 +243,14 @@ The application follows a clean architecture with separation of concerns:
 - **`log_highlighter.py`**: Syntax highlighting for log content
 - **`settings.py`**: Session, preferences, and theme management
 - **`fonts.py`**: Custom font loading and management
+
+### MCP Server Components
+
+- **`mcp_server.py`**: Model Context Protocol server for AI agent integration
+- **`mcp_bridge.py`**: Thread-safe bridge between LogManager and MCP server
+- Exposes logs as MCP resources with tools for listing, searching, and retrieving content
+- Runs asynchronously in separate thread without blocking the UI
+- See [MCP Server Details](Docs/MCP_Details.md) for architecture details
 
 ### File State Management
 
@@ -275,7 +312,9 @@ logarithmic/
 │   │   └── release.yml         # Automated releases
 │   └── RELEASE.md              # Release documentation
 ├── Docs/
-│   └── CodingGuidelines.md     # Development standards
+│   ├── CodingGuidelines.md     # Development standards
+│   ├── MCP_QUICKSTART.md       # MCP server quick start guide
+│   └── MCP_Details.md          # MCP server technical details
 ├── fonts/
 │   ├── Michroma/               # Title font
 │   ├── Oxanium/                # UI font
@@ -298,6 +337,8 @@ logarithmic/
 │       ├── log_manager.py      # Log buffer management
 │       ├── log_viewer_window.py    # Single log window
 │       ├── main_window.py      # Main control window
+│       ├── mcp_bridge.py       # MCP server bridge
+│       ├── mcp_server.py       # MCP server implementation
 │       ├── settings.py         # Session & preferences
 │       └── wildcard_watcher.py # Wildcard pattern support
 ├── .gitignore
@@ -319,6 +360,7 @@ Logarithmic is perfect for:
 - **CI/CD Pipelines**: Track build and deployment logs in real-time
 - **Testing**: Monitor test execution logs with automatic error highlighting
 - **Production Monitoring**: Keep an eye on production logs with session-based organization
+- **AI-Assisted Debugging**: Use Claude or other AI agents to analyze logs and find issues faster
 
 ## 🤝 Contributing
 

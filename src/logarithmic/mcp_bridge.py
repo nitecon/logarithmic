@@ -135,7 +135,9 @@ class McpBridge(LogSubscriber):
 
             # Fallback: try as path_key
             if log_id in self._subscribed_paths:
-                log_metadata: dict[str, str] | None = self._settings.get_log_metadata(log_id)
+                log_metadata: dict[str, str] | None = self._settings.get_log_metadata(
+                    log_id
+                )
                 return {
                     "id": log_metadata.get("id", log_id) if log_metadata else log_id,
                     "description": log_metadata.get("description", log_id)

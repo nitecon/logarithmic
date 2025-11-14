@@ -42,7 +42,9 @@ class LogViewerWindow(QWidget):
         # Callbacks
         self._set_default_size_callback: Callable[[int, int], None] | None = None
         self._get_other_windows_callback: Callable[[], list] | None = None
-        self._position_changed_callback: Callable[[int, int, int, int], None] | None = None
+        self._position_changed_callback: Callable[[int, int, int, int], None] | None = (
+            None
+        )
 
         # Track last saved position
         self._last_saved_position: tuple[int, int, int, int] | None = None

@@ -264,7 +264,9 @@ class _FileCreationHandler(FileSystemEventHandler):
 
     def on_created(self, event: FileSystemEvent) -> None:
         """Handle file creation events."""
-        src_path = event.src_path if isinstance(event.src_path, str) else str(event.src_path)
+        src_path = (
+            event.src_path if isinstance(event.src_path, str) else str(event.src_path)
+        )
         if not event.is_directory and Path(src_path) == self.target_path:
             self.callback()
 
@@ -273,7 +275,10 @@ class _FileTailHandler(FileSystemEventHandler):
     """Handler for watching file modification and deletion events."""
 
     def __init__(
-        self, target_path: Path, on_modified: Callable[[], None], on_deleted: Callable[[], None]
+        self,
+        target_path: Path,
+        on_modified: Callable[[], None],
+        on_deleted: Callable[[], None],
     ) -> None:
         """Initialize the handler.
 
@@ -289,18 +294,24 @@ class _FileTailHandler(FileSystemEventHandler):
 
     def on_modified(self, event: FileSystemEvent) -> None:
         """Handle file modification events."""
-        src_path = event.src_path if isinstance(event.src_path, str) else str(event.src_path)
+        src_path = (
+            event.src_path if isinstance(event.src_path, str) else str(event.src_path)
+        )
         if not event.is_directory and Path(src_path) == self.target_path:
             self.on_modified_callback()
 
     def on_deleted(self, event: FileSystemEvent) -> None:
         """Handle file deletion events."""
-        src_path = event.src_path if isinstance(event.src_path, str) else str(event.src_path)
+        src_path = (
+            event.src_path if isinstance(event.src_path, str) else str(event.src_path)
+        )
         if not event.is_directory and Path(src_path) == self.target_path:
             self.on_deleted_callback()
 
     def on_moved(self, event: FileSystemEvent) -> None:
         """Handle file move events (treat as deletion)."""
-        src_path = event.src_path if isinstance(event.src_path, str) else str(event.src_path)
+        src_path = (
+            event.src_path if isinstance(event.src_path, str) else str(event.src_path)
+        )
         if not event.is_directory and Path(src_path) == self.target_path:
             self.on_deleted_callback()

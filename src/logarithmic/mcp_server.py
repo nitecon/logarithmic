@@ -286,7 +286,7 @@ class LogarithmicMcpServer:
             debug=True,
             routes=[
                 Route("/sse", endpoint=sse.handle_sse),  # type: ignore[attr-defined]
-                Route("/messages", endpoint=sse.handle_post_message, methods=["POST"])
+                Route("/messages", endpoint=sse.handle_post_message, methods=["POST"]),
             ],
         )
 

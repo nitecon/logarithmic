@@ -382,7 +382,11 @@ class Settings:
         result = self._data.get(
             "font_sizes", {"log_content": 9, "ui_elements": 10, "status_bar": 9}
         )
-        return dict(result) if isinstance(result, dict) else {"log_content": 9, "ui_elements": 10, "status_bar": 9}
+        return (
+            dict(result)
+            if isinstance(result, dict)
+            else {"log_content": 9, "ui_elements": 10, "status_bar": 9}
+        )
 
     def set_font_size(self, element: str, size: int) -> None:
         """Set font size for a specific element.
@@ -411,12 +415,16 @@ class Settings:
                 "default_color": "#CCCCCC",
             },
         )
-        return dict(result) if isinstance(result, dict) else {
-            "error_color": "#FF4444",
-            "warning_color": "#FFA500",
-            "verbose_color": "#888888",
-            "default_color": "#CCCCCC",
-        }
+        return (
+            dict(result)
+            if isinstance(result, dict)
+            else {
+                "error_color": "#FF4444",
+                "warning_color": "#FFA500",
+                "verbose_color": "#888888",
+                "default_color": "#CCCCCC",
+            }
+        )
 
     def set_theme_color(self, color_type: str, color: str) -> None:
         """Set a theme color.
@@ -442,7 +450,11 @@ class Settings:
             "mcp_server",
             {"enabled": False, "binding_address": "127.0.0.1", "port": 3000},
         )
-        return dict(result) if isinstance(result, dict) else {"enabled": False, "binding_address": "127.0.0.1", "port": 3000}
+        return (
+            dict(result)
+            if isinstance(result, dict)
+            else {"enabled": False, "binding_address": "127.0.0.1", "port": 3000}
+        )
 
     def set_mcp_server_enabled(self, enabled: bool) -> None:
         """Enable or disable the MCP server.

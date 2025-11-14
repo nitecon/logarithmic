@@ -47,7 +47,11 @@ class _DirectoryWatchHandler(FileSystemEventHandler):
         """
         if not event.is_directory:
             # Check if new file matches pattern using fnmatch
-            src_path = event.src_path if isinstance(event.src_path, str) else str(event.src_path)
+            src_path = (
+                event.src_path
+                if isinstance(event.src_path, str)
+                else str(event.src_path)
+            )
             filename = Path(src_path).name
             pattern_name = Path(self._pattern).name
             if fnmatch.fnmatch(filename, pattern_name):

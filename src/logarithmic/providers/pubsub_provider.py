@@ -151,4 +151,6 @@ class PubSubProvider(LogProvider):
         if credentials_path:
             config_dict["credentials_path"] = credentials_path
 
-        return ProviderConfig(ProviderType.PUBSUB, ProviderMode.TAIL_ONLY, **config_dict)
+        return ProviderConfig(
+            ProviderType.PUBSUB, ProviderMode.TAIL_ONLY, **config_dict
+        )

@@ -15,7 +15,6 @@ dependencies = [
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
     "kubernetes>=34.1.0",
-    "urllib3>=2.5.0",  # Security fix for SSRF vulnerability
 ]
 
 [project.optional-dependencies]

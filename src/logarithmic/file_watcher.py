@@ -129,8 +129,8 @@ class FileWatcherThread(QThread):
             try:
                 if self._observer.is_alive():
                     self._observer.stop()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Error stopping observer during file creation: {e}")
             self._observer = None
         
         # Publish to log manager

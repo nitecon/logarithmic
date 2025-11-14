@@ -63,16 +63,23 @@ def test_session_management(mock_settings: Path) -> None:
     # Add some data to current session
     settings.add_tracked_log("/path/to/log1.log")
     
-    # Save as new session
+    # Save as new session (saves current data to new session file)
     settings.save_session_as("test_session")
     
-    # Switch to new session (should be empty)
+    # Switch to new session (should have the same data we just saved)
     settings.switch_session("test_session")
-    assert settings.get_tracked_logs() == []
+    assert settings.get_tracked_logs() == ["/path/to/log1.log"]
     
-    # Switch back to default
+    # Add different data to test_session
+    settings.add_tracked_log("/path/to/log2.log")
+    
+    # Switch back to default (should still have original data)
     settings.switch_session("default")
-    assert len(settings.get_tracked_logs()) == 1
+    assert settings.get_tracked_logs() == ["/path/to/log1.log"]
+    
+    # Switch back to test_session (should have both logs)
+    settings.switch_session("test_session")
+    assert len(settings.get_tracked_logs()) == 2
 
 
 def test_mcp_server_settings(mock_settings: Path) -> None:

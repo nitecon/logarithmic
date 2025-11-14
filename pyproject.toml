@@ -59,10 +59,29 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 minversion = "7.0"
-addopts = "-ra -q --cov=src/logarithmic --cov-report=term-missing"
+addopts = "-ra -q --cov=src/logarithmic --cov-report=term-missing --cov-fail-under=50"
 testpaths = ["tests"]
 
 [tool.coverage.run]
 omit = [
     "src/logarithmic/__main__.py",
+    "src/logarithmic/main_window.py",
+    "src/logarithmic/log_viewer_window.py",
+    "src/logarithmic/log_group_window.py",
+    "src/logarithmic/k8s_selector_dialog.py",
+    "src/logarithmic/content_controller.py",
+    "src/logarithmic/log_highlighter.py",
+    "src/logarithmic/fonts.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
 ]

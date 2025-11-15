@@ -16,6 +16,7 @@ from watchdog.events import FileSystemEvent
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer as WatchdogObserver
 from watchdog.observers.api import BaseObserver
+from watchdog.observers.api import ObservedWatch
 
 from logarithmic.exceptions import InvalidPathError
 
@@ -26,7 +27,13 @@ logger = logging.getLogger(__name__)
 
 
 # Global registry to share observers across multiple watchers for the same directory
-_DIRECTORY_OBSERVERS: dict[str, tuple[WatchdogObserver, int]] = {}
+# Type alias for the observer type
+if TYPE_CHECKING:
+    ObserverType = BaseObserver
+else:
+    ObserverType = WatchdogObserver
+
+_DIRECTORY_OBSERVERS: dict[str, tuple[ObserverType, int]] = {}
 _OBSERVER_LOCK = __import__("threading").Lock()
 
 
@@ -130,6 +137,7 @@ class WildcardFileWatcher(QThread):
         self._dir_handler: _DirectoryWatchHandler | None = (
             None  # Track handler for seen files
         )
+        self._watch: ObservedWatch | None = None  # Track watch for unscheduling
 
         # Validate pattern
         pattern_path = Path(pattern)
@@ -339,8 +347,8 @@ class WildcardFileWatcher(QThread):
                 _DIRECTORY_OBSERVERS[directory] = (self._observer, 1)
                 logger.debug(f"Created new observer for directory: {directory}")
 
-            # Schedule handler on the observer
-            self._observer.schedule(self._dir_handler, directory, recursive=False)
+            # Schedule handler on the observer and store the watch
+            self._watch = self._observer.schedule(self._dir_handler, directory, recursive=False)
             logger.info(f"Watching directory: {directory}")
 
     def _on_new_file_created(self, file_path: str) -> None:
@@ -427,9 +435,10 @@ class WildcardFileWatcher(QThread):
                 pattern_path = Path(self._pattern)
                 directory = str(pattern_path.parent)
 
-                if self._dir_handler:
-                    self._observer.unschedule(self._dir_handler)
-                    logger.debug(f"Unscheduled handler for directory: {directory}")
+                if self._watch:
+                    self._observer.unschedule(self._watch)
+                    logger.debug(f"Unscheduled watch for directory: {directory}")
+                    self._watch = None
 
                 # Decrement reference count and stop observer if no more references
                 with _OBSERVER_LOCK:
@@ -437,9 +446,10 @@ class WildcardFileWatcher(QThread):
                         observer, ref_count = _DIRECTORY_OBSERVERS[directory]
                         if ref_count <= 1:
                             # Last reference, stop and remove observer
-                            if observer.is_alive():
+                            if hasattr(observer, 'is_alive') and observer.is_alive():
                                 observer.stop()
-                                observer.join(timeout=1.0)
+                                if hasattr(observer, 'join'):
+                                    observer.join(timeout=1.0)
                             del _DIRECTORY_OBSERVERS[directory]
                             logger.debug(
                                 f"Stopped and removed observer for directory: {directory}"

@@ -47,6 +47,7 @@ from logarithmic.providers import ProviderMode
 from logarithmic.providers import ProviderRegistry
 from logarithmic.providers import ProviderType
 from logarithmic.settings import Settings
+from logarithmic.shutdown_dialog import ShutdownDialog
 from logarithmic.wildcard_watcher import WildcardFileWatcher
 
 logger = logging.getLogger(__name__)
@@ -2206,25 +2207,45 @@ class MainWindow(QMainWindow):
         """
         logger.info("Main window closing, stopping all providers and watchers...")
 
+        # Create and show shutdown dialog
+        shutdown_dialog = ShutdownDialog(self)
+        shutdown_dialog.show()
+
+        # Process events to ensure dialog is visible
+        from PySide6.QtWidgets import QApplication
+
+        QApplication.processEvents()
+
         # Stop MCP server
         if self._mcp_server and self._mcp_server.is_running():
             logger.info("Stopping MCP server...")
+            shutdown_dialog.update_status("Stopping MCP server...")
+            QApplication.processEvents()
             self._mcp_server.stop()
 
         # Stop all providers
+        shutdown_dialog.update_status("Shutting down log providers...")
+        QApplication.processEvents()
         for path_key, provider in self._providers.items():
             logger.debug(f"Stopping provider for: {path_key}")
             provider.stop()
 
         # Stop all watchers
+        shutdown_dialog.update_status("Shutting down log watchers...")
+        QApplication.processEvents()
         for path_key, watcher in self._watchers.items():
             logger.debug(f"Stopping watcher for: {path_key}")
             watcher.stop()
 
         # Wait for all provider threads to finish (with timeout)
-        for path_key, provider in self._providers.items():
+        total_providers = len(self._providers)
+        for idx, (path_key, provider) in enumerate(self._providers.items(), 1):
             # Check if provider has a thread to wait for
             if hasattr(provider, "wait"):
+                shutdown_dialog.update_status(
+                    f"Waiting for providers to finish ({idx}/{total_providers})..."
+                )
+                QApplication.processEvents()
                 logger.debug(f"Waiting for provider thread to finish: {path_key}")
                 # K8s threads may be blocked in socket reads, give them more time
                 timeout = 5000 if path_key.startswith("k8s://") else 3000
@@ -2237,7 +2258,12 @@ class MainWindow(QMainWindow):
                     logger.debug(f"Provider thread finished: {path_key}")
 
         # Wait for all watcher threads to finish (with timeout)
-        for path_key, watcher in self._watchers.items():
+        total_watchers = len(self._watchers)
+        for idx, (path_key, watcher) in enumerate(self._watchers.items(), 1):
+            shutdown_dialog.update_status(
+                f"Waiting for watchers to finish ({idx}/{total_watchers})..."
+            )
+            QApplication.processEvents()
             logger.debug(f"Waiting for watcher thread to finish: {path_key}")
             if not watcher.wait(2000):  # Wait up to 2 seconds
                 logger.warning(f"Watcher thread did not finish in time: {path_key}")
@@ -2245,12 +2271,19 @@ class MainWindow(QMainWindow):
                 logger.debug(f"Watcher thread finished: {path_key}")
 
         # Close all viewer windows
+        shutdown_dialog.update_status("Closing viewer windows...")
+        QApplication.processEvents()
         for viewer in list(self._viewer_windows.values()):
             viewer.close()
 
         # Close all group windows
+        shutdown_dialog.update_status("Closing group windows...")
+        QApplication.processEvents()
         for group_window in list(self._group_windows.values()):
             group_window.close()
+
+        # Close shutdown dialog
+        shutdown_dialog.close()
 
         logger.info("Main window cleanup complete")
         event.accept()

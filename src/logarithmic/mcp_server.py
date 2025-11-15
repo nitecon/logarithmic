@@ -43,6 +43,7 @@ class LogarithmicMcpServer:
         self._running = False
         self._thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._uvicorn_server: Any | None = None
 
         self._setup_handlers()
 
@@ -249,10 +250,26 @@ class LogarithmicMcpServer:
             return
 
         self._running = False
+        logger.info("Stopping MCP server...")
 
+        # Gracefully shutdown uvicorn server
+        if self._uvicorn_server and self._loop:
+            try:
+                # Schedule shutdown on the event loop
+                future = asyncio.run_coroutine_threadsafe(
+                    self._uvicorn_server.shutdown(), self._loop
+                )
+                # Wait for shutdown to complete
+                future.result(timeout=3.0)
+                logger.debug("Uvicorn server shutdown complete")
+            except Exception as e:
+                logger.warning(f"Error during uvicorn shutdown: {e}")
+
+        # Stop the event loop
         if self._loop and self._loop.is_running():
             self._loop.call_soon_threadsafe(self._loop.stop)
 
+        # Wait for thread to finish
         if self._thread:
             self._thread.join(timeout=5.0)
 
@@ -307,10 +324,10 @@ class LogarithmicMcpServer:
 
         # Configure uvicorn
         config = uvicorn.Config(app, host=self._host, port=self._port, log_level="info")
-        server = uvicorn.Server(config)
+        self._uvicorn_server = uvicorn.Server(config)
 
         logger.info(f"MCP server running on http://{self._host}:{self._port}")
-        await server.serve()
+        await self._uvicorn_server.serve()
 
     def is_running(self) -> bool:
         """Check if the server is running.

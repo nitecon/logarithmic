@@ -1,6 +1,7 @@
 """Log Group Window - displays multiple log files in tabs or combined view."""
 
 import logging
+import time
 from pathlib import Path
 from typing import Callable
 
@@ -72,6 +73,10 @@ class LogGroupWindow(QWidget):
 
         # Buffer content for each log (preserved across mode switches)
         self._log_buffers: dict[str, str] = {}
+
+        # Debouncing for combined clear to prevent spam
+        self._last_combined_clear_time: float = 0
+        self._last_mode_switch_time: float = 0
 
         self._setup_ui()
 
@@ -203,6 +208,17 @@ class LogGroupWindow(QWidget):
 
     def _switch_to_combined(self) -> None:
         """Switch to combined mode."""
+        # Debounce: ignore if called within 0.5 seconds of last switch
+        current_time = time.time()
+        if current_time - self._last_mode_switch_time < 0.5:
+            logger.debug(
+                f"Ignoring duplicate mode switch for group {self.group_name} "
+                f"(debounced within 0.5 seconds)"
+            )
+            return
+
+        self._last_mode_switch_time = current_time
+        
         self._mode = "combined"
         self.mode_button.setText("Switch to Tabbed Mode")
 
@@ -230,15 +246,16 @@ class LogGroupWindow(QWidget):
         # Create the widget
         widget = self._combined_controller.create_widget()
 
-        # Add warning message
-        warning = (
-            "═" * 80 + "\n"
-            "║  COMBINED MODE - History Cleared\n"
-            "║  Only new log entries will be displayed here.\n"
-            "║  Switch back to Tabbed Mode to see full history.\n"
-            "═" * 80 + "\n\n"
-        )
-        self._combined_controller.set_text(warning)
+        # Override the clear button behavior to show warning message
+        if self._combined_controller._clear_btn:
+            # Disconnect default clear behavior
+            self._combined_controller._clear_btn.clicked.disconnect()
+            # Connect to our custom clear handler
+            self._combined_controller._clear_btn.clicked.connect(self._on_combined_clear)
+
+        # Start with empty combined view - warning will be shown only when user clears
+        logger.debug(f"Initializing empty combined view for group {self.group_name}")
+        self._combined_controller.set_text("")
 
         # Add tab
         self.tab_widget.addTab(widget, "Combined View")
@@ -292,6 +309,7 @@ class LogGroupWindow(QWidget):
                     filename = Path(path).name
                     # Update combined view line count
                     self._combined_line_count += content.count("\n")
+                    logger.debug(f"Appending {len(content)} chars to combined view from {filename}")
                     # ContentController will handle prefixing with source
                     self._combined_controller.append_text(content, source=filename)
 
@@ -477,6 +495,16 @@ class LogGroupWindow(QWidget):
         if not self._combined_controller:
             return
 
+        # Debounce: ignore if called within 1 second of last clear
+        current_time = time.time()
+        if current_time - self._last_combined_clear_time < 1.0:
+            logger.debug(
+                f"Ignoring duplicate combined clear for group {self.group_name} "
+                f"(debounced within 1 second)"
+            )
+            return
+
+        self._last_combined_clear_time = current_time
         logger.info(f"Clearing combined view for group {self.group_name}")
 
         # Use controller's clear method

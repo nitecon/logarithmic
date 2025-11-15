@@ -85,6 +85,8 @@ class Settings:
                     "port": 3000,
                 },
                 "log_metadata": {},  # path_key -> {id, description} mapping
+                "provider_configs": {},  # path_key -> provider config (e.g., kubeconfig_path)
+                "kubeconfig_path": None,  # Global kubeconfig path for K8s
             }
             return
 
@@ -538,3 +540,55 @@ class Settings:
         """
         result = self._data.get("log_metadata", {})
         return dict(result) if isinstance(result, dict) else {}
+
+    def get_provider_config(self, path_key: str) -> dict | None:
+        """Get provider configuration for a log source.
+
+        Args:
+            path_key: Unique identifier for the log source
+
+        Returns:
+            Provider config dict, or None if not set
+        """
+        configs = self._data.get("provider_configs", {})
+        result = configs.get(path_key) if isinstance(configs, dict) else None
+        return dict(result) if isinstance(result, dict) else None
+
+    def set_provider_config(self, path_key: str, config: dict) -> None:
+        """Set provider configuration for a log source.
+
+        Args:
+            path_key: Unique identifier for the log source
+            config: Provider configuration dict
+        """
+        if "provider_configs" not in self._data:
+            self._data["provider_configs"] = {}
+        self._data["provider_configs"][path_key] = config
+        self._save()
+
+    def remove_provider_config(self, path_key: str) -> None:
+        """Remove provider configuration for a log source.
+
+        Args:
+            path_key: Unique identifier for the log source
+        """
+        if "provider_configs" in self._data and path_key in self._data["provider_configs"]:
+            del self._data["provider_configs"][path_key]
+            self._save()
+
+    def get_kubeconfig_path(self) -> str | None:
+        """Get the global kubeconfig path.
+
+        Returns:
+            Kubeconfig path or None if not set
+        """
+        return self._data.get("kubeconfig_path")
+
+    def set_kubeconfig_path(self, path: str | None) -> None:
+        """Set the global kubeconfig path.
+
+        Args:
+            path: Kubeconfig file path
+        """
+        self._data["kubeconfig_path"] = path
+        self._save()

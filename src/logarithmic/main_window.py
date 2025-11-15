@@ -13,6 +13,7 @@ from PySide6.QtWidgets import QCheckBox
 from PySide6.QtWidgets import QComboBox
 from PySide6.QtWidgets import QDialog
 from PySide6.QtWidgets import QDialogButtonBox
+from PySide6.QtWidgets import QFileDialog
 from PySide6.QtWidgets import QFrame
 from PySide6.QtWidgets import QHBoxLayout
 from PySide6.QtWidgets import QInputDialog
@@ -52,18 +53,20 @@ logger = logging.getLogger(__name__)
 
 
 class TrackingModeDialog(QDialog):
-    """Dialog to select tracking mode for a log file."""
+    """Dialog to select tracking mode for a log file or folder."""
 
-    def __init__(self, file_path: str, parent=None):
+    def __init__(self, path: str, is_folder: bool = False, parent=None):
         """Initialize the dialog.
 
         Args:
-            file_path: Path to the log file
+            path: Path to the log file or folder
+            is_folder: True if path is a folder, False if it's a file
             parent: Parent widget
         """
         super().__init__(parent)
-        self.file_path = file_path
-        self.tracking_mode = "dedicated"  # Default
+        self.path = path
+        self.is_folder = is_folder
+        self.tracking_mode = "wildcard" if is_folder else "dedicated"  # Default
         self.wildcard_pattern = ""
 
         self._setup_ui()
@@ -75,45 +78,64 @@ class TrackingModeDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
-        # File info
-        file_label = QLabel(f"File: {Path(self.file_path).name}")
-        file_label.setWordWrap(True)
-        file_label.setToolTip(self.file_path)
-        layout.addWidget(file_label)
+        # Path info
+        path_obj = Path(self.path)
+        if self.is_folder:
+            item_label = QLabel(f"Folder: {path_obj.name}")
+        else:
+            item_label = QLabel(f"File: {path_obj.name}")
+        item_label.setWordWrap(True)
+        item_label.setToolTip(self.path)
+        layout.addWidget(item_label)
 
-        path_label = QLabel(f"Path: {self.file_path}")
+        path_label = QLabel(f"Path: {self.path}")
         path_label.setWordWrap(True)
         path_label.setStyleSheet("color: gray; font-size: 9pt;")
         layout.addWidget(path_label)
 
         layout.addSpacing(10)
 
-        # Radio buttons
-        self.dedicated_radio = QRadioButton("Dedicated - Track this specific file")
-        self.dedicated_radio.setChecked(True)
-        self.dedicated_radio.toggled.connect(self._on_mode_changed)
-        layout.addWidget(self.dedicated_radio)
+        # Radio buttons - only show dedicated option for files
+        if not self.is_folder:
+            self.dedicated_radio = QRadioButton("Dedicated - Track this specific file")
+            self.dedicated_radio.setChecked(True)
+            self.dedicated_radio.toggled.connect(self._on_mode_changed)
+            layout.addWidget(self.dedicated_radio)
 
-        self.wildcard_radio = QRadioButton("Wildcard - Track files matching a pattern")
-        self.wildcard_radio.toggled.connect(self._on_mode_changed)
-        layout.addWidget(self.wildcard_radio)
+            self.wildcard_radio = QRadioButton("Wildcard - Track files matching a pattern in this folder")
+            self.wildcard_radio.toggled.connect(self._on_mode_changed)
+            layout.addWidget(self.wildcard_radio)
+        else:
+            # For folders, only wildcard mode is available
+            self.dedicated_radio = None
+            self.wildcard_radio = None
+            mode_label = QLabel("Track files matching a pattern in this folder:")
+            mode_label.setFont(mode_label.font())
+            layout.addWidget(mode_label)
 
         # Wildcard pattern input
         wildcard_layout = QHBoxLayout()
-        wildcard_layout.addSpacing(20)
+        if not self.is_folder:
+            wildcard_layout.addSpacing(20)
         wildcard_label = QLabel("Pattern:")
         wildcard_layout.addWidget(wildcard_label)
 
         self.wildcard_input = QLineEdit()
-        self.wildcard_input.setPlaceholderText("e.g., Cook-*.txt")
-        self.wildcard_input.setEnabled(False)
+        self.wildcard_input.setPlaceholderText("e.g., *.log or app-*.txt")
+        self.wildcard_input.setEnabled(self.is_folder)  # Always enabled for folders
         wildcard_layout.addWidget(self.wildcard_input)
         layout.addLayout(wildcard_layout)
 
         # Help text
-        help_text = QLabel(
-            "Wildcard patterns use * for any characters (e.g., Log-*.txt)"
-        )
+        if self.is_folder:
+            help_text = QLabel(
+                "Wildcard patterns use * for any characters (e.g., *.log, app-*.txt)\n"
+                "All matching files in the selected folder will be tracked."
+            )
+        else:
+            help_text = QLabel(
+                "Wildcard patterns use * for any characters (e.g., Log-*.txt)"
+            )
         help_text.setStyleSheet("color: gray; font-size: 9pt; font-style: italic;")
         help_text.setWordWrap(True)
         layout.addWidget(help_text)
@@ -130,10 +152,10 @@ class TrackingModeDialog(QDialog):
 
     def _on_mode_changed(self) -> None:
         """Handle tracking mode change."""
-        if self.wildcard_radio.isChecked():
+        if self.wildcard_radio and self.wildcard_radio.isChecked():
             self.wildcard_input.setEnabled(True)
             # Pre-fill with filename as template
-            filename = Path(self.file_path).name
+            filename = Path(self.path).name
             # Replace date/time patterns with wildcards
             import re
 
@@ -148,7 +170,8 @@ class TrackingModeDialog(QDialog):
 
     def _on_accept(self) -> None:
         """Handle OK button click."""
-        if self.wildcard_radio.isChecked():
+        # For folders or when wildcard mode is selected
+        if self.is_folder or (self.wildcard_radio and self.wildcard_radio.isChecked()):
             pattern = self.wildcard_input.text().strip()
             if not pattern:
                 QMessageBox.warning(
@@ -166,8 +189,11 @@ class TrackingModeDialog(QDialog):
 
             self.tracking_mode = "wildcard"
             # Build full pattern with directory
-            parent_dir = Path(self.file_path).parent
-            self.wildcard_pattern = str(parent_dir / pattern)
+            if self.is_folder:
+                folder_dir = Path(self.path)
+            else:
+                folder_dir = Path(self.path).parent
+            self.wildcard_pattern = str(folder_dir / pattern)
         else:
             self.tracking_mode = "dedicated"
 
@@ -265,19 +291,29 @@ class MainWindow(QMainWindow):
         control_layout.addWidget(self.provider_combo)
         self._ui_elements.append(self.provider_combo)
 
-        self.path_input = QLineEdit()
-        self.path_input.setPlaceholderText(
-            "Enter log file path or wildcard pattern (e.g., C:/logs/*.txt)"
-        )
-        self.path_input.setFont(self._fonts.get_ui_font(10))
-        control_layout.addWidget(self.path_input)
-        self._ui_elements.append(self.path_input)
+        # Browse buttons for file/folder selection (Apple sandboxing compliant)
+        self.browse_file_button = QPushButton("📄 Browse File")
+        self.browse_file_button.setFont(self._fonts.get_ui_font(10))
+        self.browse_file_button.setToolTip("Select a log file to track")
+        self.browse_file_button.clicked.connect(self._on_browse_file)
+        control_layout.addWidget(self.browse_file_button)
+        self._ui_elements.append(self.browse_file_button)
 
-        self.add_button = QPushButton("Add Log")
-        self.add_button.setFont(self._fonts.get_ui_font(10, bold=True))
-        self.add_button.clicked.connect(self._on_add_log)
-        control_layout.addWidget(self.add_button)
-        self._ui_elements.append(self.add_button)
+        self.browse_folder_button = QPushButton("📁 Browse Folder")
+        self.browse_folder_button.setFont(self._fonts.get_ui_font(10))
+        self.browse_folder_button.setToolTip("Select a folder to track files with wildcard pattern")
+        self.browse_folder_button.clicked.connect(self._on_browse_folder)
+        control_layout.addWidget(self.browse_folder_button)
+        self._ui_elements.append(self.browse_folder_button)
+
+        # Kubernetes button (shown when K8s provider is selected)
+        self.k8s_button = QPushButton("☸️ Select Pod/App")
+        self.k8s_button.setFont(self._fonts.get_ui_font(10))
+        self.k8s_button.setToolTip("Select Kubernetes pod or app to track")
+        self.k8s_button.clicked.connect(self._on_kubernetes_button)
+        control_layout.addWidget(self.k8s_button)
+        self._ui_elements.append(self.k8s_button)
+        self.k8s_button.setVisible(False)  # Hidden by default
 
         layout.addWidget(control_frame)
 
@@ -575,6 +611,9 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(settings_tab, "⚙️ Settings")
 
         layout.addWidget(self.tabs)
+        
+        # Set initial button visibility based on default provider type
+        self._on_provider_type_changed(self.provider_combo.currentIndex())
 
     def _populate_provider_combo(self) -> None:
         """Populate the provider type combo box."""
@@ -603,16 +642,67 @@ class MainWindow(QMainWindow):
         provider_type = self.provider_combo.currentData()
 
         if provider_type == ProviderType.FILE:
-            self.path_input.setPlaceholderText(
-                "Enter log file path or wildcard pattern (e.g., C:/logs/*.txt)"
-            )
-            self.path_input.setVisible(True)
+            # Show browse buttons for file provider
+            self.browse_file_button.setVisible(True)
+            self.browse_folder_button.setVisible(True)
+            self.k8s_button.setVisible(False)
         elif provider_type == ProviderType.KUBERNETES:
-            # Hide text input for K8s - we use a dialog instead
-            self.path_input.setVisible(False)
+            # Show K8s button, hide file browse buttons
+            self.browse_file_button.setVisible(False)
+            self.browse_folder_button.setVisible(False)
+            self.k8s_button.setVisible(True)
         else:
-            self.path_input.setPlaceholderText("Enter log source identifier")
-            self.path_input.setVisible(True)
+            # Hide all buttons for other providers
+            self.browse_file_button.setVisible(False)
+            self.browse_folder_button.setVisible(False)
+            self.k8s_button.setVisible(False)
+
+    def _on_browse_file(self) -> None:
+        """Handle browse file button click."""
+        logger.info("Browse file button clicked")
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Log File",
+            "",
+            "All Files (*);;Log Files (*.log);;Text Files (*.txt)"
+        )
+        
+        logger.info(f"Selected file: {file_path}")
+        if file_path:
+            # Show tracking mode dialog
+            dialog = TrackingModeDialog(file_path, is_folder=False, parent=self)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                self._add_log_from_dialog(dialog)
+
+    def _on_browse_folder(self) -> None:
+        """Handle browse folder button click."""
+        logger.info("Browse folder button clicked")
+        folder_path = QFileDialog.getExistingDirectory(
+            self,
+            "Select Folder to Track",
+            "",
+            QFileDialog.Option.ShowDirsOnly
+        )
+        
+        logger.info(f"Selected folder: {folder_path}")
+        if folder_path:
+            # Show tracking mode dialog for folder (wildcard only)
+            dialog = TrackingModeDialog(folder_path, is_folder=True, parent=self)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                self._add_log_from_dialog(dialog)
+
+    def _on_kubernetes_button(self) -> None:
+        """Handle Kubernetes button click."""
+        logger.info("Kubernetes button clicked")
+        try:
+            self._add_kubernetes_log("")
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Error Adding Kubernetes Log",
+                f"Failed to add Kubernetes log:\n{e}",
+            )
+            logger.error(f"Failed to add K8s log: {e}", exc_info=True)
 
     def _add_log_to_list(self, path_key: str, is_wildcard: bool = False) -> None:
         """Add a log file to the list with custom widget.
@@ -712,166 +802,6 @@ class MainWindow(QMainWindow):
         self.log_list.addItem(item)
         self.log_list.setItemWidget(item, widget)
 
-    def _on_add_log(self) -> None:
-        """Handle add log button click."""
-        # Get selected provider type
-        provider_type_str = self.provider_combo.currentData()
-        provider_type = ProviderType(provider_type_str)
-
-        # For Kubernetes, we don't need text input (uses dialog)
-        if provider_type == ProviderType.KUBERNETES:
-            try:
-                self._add_kubernetes_log("")
-            except Exception as e:
-                QMessageBox.critical(
-                    self,
-                    "Unexpected Error",
-                    f"Failed to add log:\n{e}",
-                )
-            return
-
-        # For other providers, check text input
-        path_str = self.path_input.text().strip()
-        if not path_str:
-            return
-
-        try:
-            if provider_type == ProviderType.FILE:
-                self._add_file_log(path_str)
-            else:
-                QMessageBox.warning(
-                    self,
-                    "Unsupported Provider",
-                    f"Provider type '{provider_type.value}' is not yet implemented.",
-                )
-                return
-
-            # Clear input
-            self.path_input.clear()
-
-        except (InvalidPathError, FileAccessError) as e:
-            QMessageBox.critical(
-                self,
-                "Error Adding Log",
-                str(e),
-            )
-        except Exception as e:
-            QMessageBox.critical(
-                self,
-                "Unexpected Error",
-                f"Failed to add log:\n{e}",
-            )
-
-    def _add_file_log(self, path_str: str) -> None:
-        """Add a file-based log source.
-
-        Args:
-            path_str: File path or wildcard pattern
-        """
-        # Check if pattern contains wildcards
-        is_wildcard = "*" in path_str or "?" in path_str
-
-        if is_wildcard:
-            # Use pattern as-is for wildcard watching
-            path_key = path_str
-
-            # Check if already tracking
-            if path_key in self._providers or path_key in self._watchers:
-                QMessageBox.warning(
-                    self,
-                    "Already Tracking",
-                    f"Already tracking pattern: {path_key}",
-                )
-                return
-
-            # Validate parent directory exists
-            pattern_path = Path(path_str)
-            if not pattern_path.parent.exists():
-                raise InvalidPathError(
-                    f"Parent directory does not exist: {pattern_path.parent}"
-                )
-
-            # Create provider config
-            config = FileProvider.create_config(path_str, is_wildcard=True)
-
-            # Add to list with wildcard indicator
-            self._add_log_to_list(path_key, is_wildcard=True)
-
-            # Register with log manager
-            self._log_manager.register_log(path_key)
-
-            # Subscribe MCP bridge if enabled
-            if self._mcp_bridge:
-                self._mcp_bridge.subscribe_to_log(path_key)
-
-            # Create and start provider
-            provider = self._provider_registry.create_provider(
-                config, self._log_manager, path_key
-            )
-            provider.error_occurred.connect(
-                lambda err: self._on_watcher_error(path_key, err)
-            )
-            provider.start()
-
-            self._providers[path_key] = provider
-            self._provider_configs[path_key] = config
-
-            # Save to settings
-            self._settings.add_tracked_log(path_key)
-            logger.info(f"Added wildcard pattern via provider: {path_key}")
-
-        else:
-            # Regular file watching
-            file_path = Path(path_str)
-            path_key = str(file_path)
-
-            # Check if already tracking
-            if path_key in self._providers or path_key in self._watchers:
-                QMessageBox.warning(
-                    self,
-                    "Already Tracking",
-                    f"Already tracking: {path_key}",
-                )
-                return
-
-            # Validate path
-            if not file_path.parent.exists():
-                raise InvalidPathError(
-                    f"Parent directory does not exist: {file_path.parent}"
-                )
-
-            # Check read permissions (if file exists)
-            if file_path.exists() and not os.access(file_path, os.R_OK):
-                raise FileAccessError(f"Cannot read file: {file_path}")
-
-            # Create provider config
-            config = FileProvider.create_config(path_key, is_wildcard=False)
-
-            # Add to list
-            self._add_log_to_list(path_key, is_wildcard=False)
-
-            # Register with log manager
-            self._log_manager.register_log(path_key)
-
-            # Subscribe MCP bridge if enabled
-            if self._mcp_bridge:
-                self._mcp_bridge.subscribe_to_log(path_key)
-
-            # Create and start provider
-            provider = self._provider_registry.create_provider(
-                config, self._log_manager, path_key
-            )
-            provider.error_occurred.connect(
-                lambda err: self._on_watcher_error(path_key, err)
-            )
-            provider.start()
-
-            self._providers[path_key] = provider
-            self._provider_configs[path_key] = config
-
-            # Save to settings
-            self._settings.add_tracked_log(path_key)
-            logger.info(f"Added file log via provider: {path_key}")
 
     def _add_kubernetes_log(self, input_str: str) -> None:
         """Add a Kubernetes pod log source.
@@ -879,8 +809,8 @@ class MainWindow(QMainWindow):
         Args:
             input_str: Input string (ignored, dialog is used instead)
         """
-        # Show K8s selector dialog
-        dialog = K8sSelectorDialog(self)
+        # Show K8s selector dialog with settings for kubeconfig persistence
+        dialog = K8sSelectorDialog(self, settings=self._settings)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
@@ -936,6 +866,7 @@ class MainWindow(QMainWindow):
                 container=container,
                 is_deployment=(tracking_mode == "app"),
                 mode=mode,
+                kubeconfig_path=dialog.kubeconfig_path,  # Pass user-selected kubeconfig
             )
 
             # Add to list
@@ -962,6 +893,13 @@ class MainWindow(QMainWindow):
 
             # Save to settings
             self._settings.add_tracked_log(path_key)
+            
+            # Save provider config (including kubeconfig path) for session restore
+            if dialog.kubeconfig_path:
+                self._settings.set_provider_config(
+                    path_key,
+                    {"kubeconfig_path": dialog.kubeconfig_path}
+                )
 
             mode_desc = "app label" if tracking_mode == "app" else "pod"
             logger.info(f"Added K8s {mode_desc} log: {path_key}")
@@ -1382,6 +1320,7 @@ class MainWindow(QMainWindow):
 
         # Remove from settings
         self._settings.remove_tracked_log(path_key)
+        self._settings.remove_provider_config(path_key)  # Clean up provider config
 
         # Remove from list
         for i in range(self.log_list.count()):
@@ -1658,6 +1597,10 @@ class MainWindow(QMainWindow):
             is_deployment = pod_or_label.startswith("app=")
             is_wildcard = is_deployment
 
+            # Get saved provider config (e.g., kubeconfig path)
+            saved_config = self._settings.get_provider_config(path_key)
+            kubeconfig_path = saved_config.get("kubeconfig_path") if saved_config else None
+
             # Create provider config
             config = KubernetesProvider.create_config(
                 namespace=namespace,
@@ -1665,6 +1608,7 @@ class MainWindow(QMainWindow):
                 container=container,
                 is_deployment=is_deployment,
                 mode=ProviderMode.TAIL_ONLY,
+                kubeconfig_path=kubeconfig_path,  # Restore saved kubeconfig path
             )
 
             # Add to list
@@ -1993,7 +1937,7 @@ class MainWindow(QMainWindow):
             event.ignore()
 
     def dropEvent(self, event: QDropEvent) -> None:
-        """Handle drop event.
+        """Handle drop event - supports both files and folders.
 
         Args:
             event: Drop event
@@ -2003,24 +1947,29 @@ class MainWindow(QMainWindow):
             return
 
         for url in urls:
-            file_path = url.toLocalFile()
-            if not file_path:
+            path_str = url.toLocalFile()
+            if not path_str:
                 continue
 
-            # Check if it's a file (not directory)
-            path_obj = Path(file_path)
-            if not path_obj.is_file():
+            path_obj = Path(path_str)
+            
+            # Support both files and folders
+            if path_obj.is_file():
+                # Show tracking mode dialog for file
+                dialog = TrackingModeDialog(path_str, is_folder=False, parent=self)
+                if dialog.exec() == QDialog.DialogCode.Accepted:
+                    self._add_log_from_dialog(dialog)
+            elif path_obj.is_dir():
+                # Show tracking mode dialog for folder (wildcard only)
+                dialog = TrackingModeDialog(path_str, is_folder=True, parent=self)
+                if dialog.exec() == QDialog.DialogCode.Accepted:
+                    self._add_log_from_dialog(dialog)
+            else:
                 QMessageBox.warning(
                     self,
                     "Invalid Drop",
-                    f"Only files can be tracked, not directories:\n{file_path}",
+                    f"Path does not exist or is not accessible:\n{path_str}",
                 )
-                continue
-
-            # Show tracking mode dialog
-            dialog = TrackingModeDialog(file_path, self)
-            if dialog.exec() == QDialog.DialogCode.Accepted:
-                self._add_log_from_dialog(dialog)
 
         event.acceptProposedAction()
 
@@ -2078,7 +2027,7 @@ class MainWindow(QMainWindow):
                 )
 
             else:  # dedicated
-                path_key = dialog.file_path
+                path_key = dialog.path
                 file_path = Path(path_key)
 
                 # Check if already tracking
@@ -2196,12 +2145,27 @@ class MainWindow(QMainWindow):
             logger.debug(f"Stopping provider for: {path_key}")
             provider.stop()
 
-        # Stop all watchers and wait for threads to finish
+        # Stop all watchers
         for path_key, watcher in self._watchers.items():
             logger.debug(f"Stopping watcher for: {path_key}")
             watcher.stop()
 
-        # Wait for all threads to finish (with timeout)
+        # Wait for all provider threads to finish (with timeout)
+        for path_key, provider in self._providers.items():
+            # Check if provider has a thread to wait for
+            if hasattr(provider, 'wait'):
+                logger.debug(f"Waiting for provider thread to finish: {path_key}")
+                # K8s threads may be blocked in socket reads, give them more time
+                timeout = 5000 if path_key.startswith("k8s://") else 3000
+                if not provider.wait(timeout):
+                    logger.warning(
+                        f"Provider thread did not finish in time: {path_key} "
+                        "(this is normal for K8s streams blocked in socket reads)"
+                    )
+                else:
+                    logger.debug(f"Provider thread finished: {path_key}")
+
+        # Wait for all watcher threads to finish (with timeout)
         for path_key, watcher in self._watchers.items():
             logger.debug(f"Waiting for watcher thread to finish: {path_key}")
             if not watcher.wait(2000):  # Wait up to 2 seconds
@@ -2484,8 +2448,6 @@ class MainWindow(QMainWindow):
             if isinstance(widget, QPushButton):
                 # Check if button should be bold
                 is_bold = widget in [
-                    self.add_button,
-                    self.session_label,
                     self.save_session_button,
                 ]
                 widget.setFont(self._fonts.get_ui_font(size, bold=is_bold))

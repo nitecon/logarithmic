@@ -351,12 +351,16 @@ class LogViewerWindow(QWidget):
         path: Log file path
         """
         if path == self._path_str:
-            separator = (
-                "\n═" * 70 + "\n║  Stream Resumed - File Recreated\n═" * 70 + "\n\n"
-            )
+            # Only show separator if we have existing content (not initial load)
             current_text = self._content_controller.get_text()
-            self._content_controller.set_text(current_text + separator)
-            logger.info(f"Displayed stream resumption for {path}")
+            if current_text.strip():  # Only add separator if there's already content
+                separator = (
+                    "\n═" * 70 + "\n║  Stream Resumed - File Recreated\n═" * 70 + "\n\n"
+                )
+                self._content_controller.set_text(current_text + separator)
+                logger.info(f"Displayed stream resumption for {path}")
+            else:
+                logger.debug(f"Skipping stream resumption separator for initial load: {path}")
 
     def flash_window(self) -> None:
         """Flash the window to get user's attention."""

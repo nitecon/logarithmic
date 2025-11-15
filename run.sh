@@ -1,7 +1,2 @@
 #!/bin/bash
-CURDIR=$(pwd)
-PATH=$CURDIR/.venv/bin:$PATH
-
-source .venv/bin/activate
-pyinstaller --noconfirm --log-level WARN Logarithmic.spec
-dist/Logarithmic
+source .venv/bin/activate && PYTHONPATH=/Users/whattingh/Documents/Projects/logarithmic/src python -m logarithmic 2>&1

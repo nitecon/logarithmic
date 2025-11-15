@@ -48,6 +48,7 @@ class K8sLogStreamer(QThread):
         log_manager: "LogManager",
         path_key: str,
         is_label_selector: bool = False,
+        kubeconfig_path: str | None = None,
     ) -> None:
         """Initialize K8s log streamer.
 
@@ -59,6 +60,7 @@ class K8sLogStreamer(QThread):
             log_manager: Log manager instance
             path_key: Unique identifier
             is_label_selector: If True, pod_name is a label selector
+            kubeconfig_path: Path to kubeconfig file (optional, for sandboxing)
         """
         super().__init__()
         self._namespace = namespace
@@ -68,6 +70,7 @@ class K8sLogStreamer(QThread):
         self._log_manager = log_manager
         self._path_key = path_key
         self._is_label_selector = is_label_selector
+        self._kubeconfig_path = kubeconfig_path
         self._running = False
         self._paused = False
 
@@ -81,8 +84,11 @@ class K8sLogStreamer(QThread):
         logger.info(f"Starting K8s log stream for {self._namespace}/{self._pod_name}")
 
         try:
-            # Load kubeconfig
-            config.load_kube_config()
+            # Load kubeconfig from user-selected file or default
+            if self._kubeconfig_path:
+                config.load_kube_config(config_file=self._kubeconfig_path)
+            else:
+                config.load_kube_config()
             v1 = client.CoreV1Api()
 
             if self._is_label_selector:
@@ -297,6 +303,7 @@ class KubernetesProvider(LogProvider):
         self._container = config.get("container")
         self._context = config.get("context")
         self._is_deployment = config.get("is_deployment", False)
+        self._kubeconfig_path = config.get("kubeconfig_path")  # For sandboxing
 
         if not self._pod_name:
             raise ValueError("KubernetesProvider requires 'pod_name' in config")
@@ -330,6 +337,7 @@ class KubernetesProvider(LogProvider):
             log_manager=self._log_manager,
             path_key=self._path_key,
             is_label_selector=self._is_deployment,
+            kubeconfig_path=self._kubeconfig_path,
         )
 
         self._streamer.new_lines.connect(
@@ -347,10 +355,30 @@ class KubernetesProvider(LogProvider):
 
         if hasattr(self, "_streamer") and self._streamer:
             self._streamer.stop()
-            self._streamer.wait(5000)  # Wait up to 5 seconds
 
         self._running = False
         logger.info(f"KubernetesProvider stopped for {self._path_key}")
+
+    def wait(self, timeout_ms: int = 5000) -> bool:
+        """Wait for the streamer thread to finish.
+        
+        Args:
+            timeout_ms: Timeout in milliseconds
+            
+        Returns:
+            True if thread finished, False if timeout
+        """
+        if hasattr(self, "_streamer") and self._streamer:
+            finished = self._streamer.wait(timeout_ms)
+            if not finished:
+                # Thread is likely blocked in socket read, force terminate
+                logger.warning(
+                    f"K8s streamer thread did not finish gracefully, terminating: {self._path_key}"
+                )
+                self._streamer.terminate()
+                self._streamer.wait(1000)  # Wait for termination
+            return finished
+        return True
 
     def pause(self) -> None:
         """Pause log streaming."""
@@ -442,6 +470,7 @@ class KubernetesProvider(LogProvider):
         context: str | None = None,
         is_deployment: bool = False,
         mode: ProviderMode = ProviderMode.TAIL_ONLY,
+        kubeconfig_path: str | None = None,
     ) -> ProviderConfig:
         """Create a Kubernetes provider configuration.
 
@@ -452,6 +481,7 @@ class KubernetesProvider(LogProvider):
             context: Kubeconfig context (optional)
             is_deployment: Whether tracking a deployment (wildcard)
             mode: Operating mode (default: TAIL_ONLY)
+            kubeconfig_path: Path to kubeconfig file (optional, for sandboxing)
 
         Returns:
             Provider configuration
@@ -466,5 +496,7 @@ class KubernetesProvider(LogProvider):
             config_dict["container"] = container
         if context:
             config_dict["context"] = context
+        if kubeconfig_path:
+            config_dict["kubeconfig_path"] = kubeconfig_path
 
         return ProviderConfig(ProviderType.KUBERNETES, mode, **config_dict)

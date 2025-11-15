@@ -11,6 +11,7 @@ from mcp.types import Resource
 from mcp.types import TextContent
 from mcp.types import Tool
 from starlette.applications import Starlette
+from starlette.routing import Mount
 from starlette.routing import Route
 
 from logarithmic.mcp_bridge import McpBridge
@@ -277,16 +278,30 @@ class LogarithmicMcpServer:
     async def _serve(self) -> None:
         """Serve the MCP server using SSE transport."""
         import uvicorn
+        from starlette.responses import Response
 
         # Create SSE transport
         sse = SseServerTransport("/messages")
 
+        # Create SSE handler endpoint
+        async def handle_sse(request):
+            """Handle SSE connection requests."""
+            async with sse.connect_sse(
+                request.scope, request.receive, request._send
+            ) as streams:
+                await self._server.run(
+                    streams[0], streams[1], self._server.create_initialization_options()
+                )
+            # Return empty response to avoid NoneType error
+            return Response()
+
         # Create Starlette app with SSE endpoint
+        # Use Mount for the POST endpoint since handle_post_message is an ASGI app
         app = Starlette(
             debug=True,
             routes=[
-                Route("/sse", endpoint=sse.handle_sse),  # type: ignore[attr-defined]
-                Route("/messages", endpoint=sse.handle_post_message, methods=["POST"]),
+                Route("/sse", endpoint=handle_sse, methods=["GET"]),
+                Mount("/messages", app=sse.handle_post_message),
             ],
         )
 
@@ -294,10 +309,8 @@ class LogarithmicMcpServer:
         config = uvicorn.Config(app, host=self._host, port=self._port, log_level="info")
         server = uvicorn.Server(config)
 
-        # Connect MCP server to transport
-        async with sse.connect_sse(self._server):  # type: ignore[call-arg,arg-type]
-            logger.info(f"MCP server running on http://{self._host}:{self._port}")
-            await server.serve()
+        logger.info(f"MCP server running on http://{self._host}:{self._port}")
+        await server.serve()
 
     def is_running(self) -> bool:
         """Check if the server is running.

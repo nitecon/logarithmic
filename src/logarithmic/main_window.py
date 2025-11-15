@@ -2594,6 +2594,13 @@ class MainWindow(QMainWindow):
         self._settings.set_mcp_server_enabled(enabled)
         logger.info(f"MCP server enabled changed to {enabled}")
 
+        if enabled:
+            # Start the MCP server
+            self._start_mcp_server()
+        else:
+            # Stop the MCP server
+            self._stop_mcp_server()
+
     def _on_mcp_binding_changed(self, text: str) -> None:
         """Handle MCP server binding address change.
 
@@ -2612,3 +2619,67 @@ class MainWindow(QMainWindow):
         """
         self._settings.set_mcp_server_port(port)
         logger.info(f"MCP server port changed to {port}")
+
+    def _start_mcp_server(self) -> None:
+        """Start the MCP server."""
+        if self._mcp_server and self._mcp_server.is_running():
+            logger.info("MCP server is already running")
+            return
+
+        try:
+            # Create MCP bridge if not exists
+            if not self._mcp_bridge:
+                self._mcp_bridge = McpBridge(self._log_manager, self._settings)
+                # Subscribe to all tracked logs
+                self._mcp_bridge.subscribe_to_all_tracked_logs()
+
+            # Get settings
+            mcp_settings = self._settings.get_mcp_server_settings()
+            binding_address = mcp_settings.get("binding_address", "127.0.0.1")
+            port = mcp_settings.get("port", 3000)
+
+            # Create and start MCP server
+            self._mcp_server = LogarithmicMcpServer(
+                self._mcp_bridge, host=binding_address, port=port
+            )
+            self._mcp_server.start()
+
+            logger.info(f"MCP server started on {binding_address}:{port}")
+            QMessageBox.information(
+                self,
+                "MCP Server Started",
+                f"MCP server is now running on {binding_address}:{port}\n\n"
+                f"You can connect AI agents to this endpoint.",
+            )
+
+        except Exception as e:
+            logger.error(f"Failed to start MCP server: {e}", exc_info=True)
+            QMessageBox.warning(
+                self,
+                "MCP Server Error",
+                f"Failed to start MCP server: {e}\n\nCheck the logs for more details.",
+            )
+            # Uncheck the checkbox since server failed to start
+            self.mcp_enabled_checkbox.setChecked(False)
+
+    def _stop_mcp_server(self) -> None:
+        """Stop the MCP server."""
+        if not self._mcp_server or not self._mcp_server.is_running():
+            logger.info("MCP server is not running")
+            return
+
+        try:
+            self._mcp_server.stop()
+            logger.info("MCP server stopped")
+            QMessageBox.information(
+                self,
+                "MCP Server Stopped",
+                "MCP server has been stopped.",
+            )
+        except Exception as e:
+            logger.error(f"Failed to stop MCP server: {e}", exc_info=True)
+            QMessageBox.warning(
+                self,
+                "MCP Server Error",
+                f"Failed to stop MCP server: {e}",
+            )

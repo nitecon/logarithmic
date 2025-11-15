@@ -25,6 +25,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# Global registry to share observers across multiple watchers for the same directory
+_DIRECTORY_OBSERVERS: dict[str, tuple[WatchdogObserver, int]] = {}
+_OBSERVER_LOCK = __import__("threading").Lock()
+
+
 class _DirectoryWatchHandler(FileSystemEventHandler):
     """Handler for watching directory for new matching files."""
 
@@ -318,10 +323,25 @@ class WildcardFileWatcher(QThread):
             self._dir_handler._seen_files.add(str(self._current_file))
             logger.debug(f"Marked initial file as seen: {self._current_file}")
 
-        self._observer = WatchdogObserver()
-        self._observer.schedule(self._dir_handler, directory, recursive=False)
-        self._observer.start()
-        logger.info(f"Watching directory: {directory}")
+        # Use shared observer for this directory to avoid FSEvents conflicts
+        with _OBSERVER_LOCK:
+            if directory in _DIRECTORY_OBSERVERS:
+                # Reuse existing observer
+                self._observer, ref_count = _DIRECTORY_OBSERVERS[directory]
+                _DIRECTORY_OBSERVERS[directory] = (self._observer, ref_count + 1)
+                logger.debug(
+                    f"Reusing observer for directory: {directory} (refs: {ref_count + 1})"
+                )
+            else:
+                # Create new observer
+                self._observer = WatchdogObserver()
+                self._observer.start()
+                _DIRECTORY_OBSERVERS[directory] = (self._observer, 1)
+                logger.debug(f"Created new observer for directory: {directory}")
+
+            # Schedule handler on the observer
+            self._observer.schedule(self._dir_handler, directory, recursive=False)
+            logger.info(f"Watching directory: {directory}")
 
     def _on_new_file_created(self, file_path: str) -> None:
         """Callback when a new matching file is created.
@@ -403,9 +423,33 @@ class WildcardFileWatcher(QThread):
 
         if self._observer:
             try:
-                if self._observer.is_alive():
-                    self._observer.stop()
-                    self._observer.join(timeout=1.0)
+                # Unregister handler from shared observer
+                pattern_path = Path(self._pattern)
+                directory = str(pattern_path.parent)
+
+                if self._dir_handler:
+                    self._observer.unschedule(self._dir_handler)
+                    logger.debug(f"Unscheduled handler for directory: {directory}")
+
+                # Decrement reference count and stop observer if no more references
+                with _OBSERVER_LOCK:
+                    if directory in _DIRECTORY_OBSERVERS:
+                        observer, ref_count = _DIRECTORY_OBSERVERS[directory]
+                        if ref_count <= 1:
+                            # Last reference, stop and remove observer
+                            if observer.is_alive():
+                                observer.stop()
+                                observer.join(timeout=1.0)
+                            del _DIRECTORY_OBSERVERS[directory]
+                            logger.debug(
+                                f"Stopped and removed observer for directory: {directory}"
+                            )
+                        else:
+                            # Decrement reference count
+                            _DIRECTORY_OBSERVERS[directory] = (observer, ref_count - 1)
+                            logger.debug(
+                                f"Decremented observer ref count for directory: {directory} (refs: {ref_count - 1})"
+                            )
             except Exception as e:
-                logger.error(f"Error stopping observer: {e}")
+                logger.error(f"Error cleaning up observer: {e}")
             self._observer = None

@@ -56,18 +56,18 @@ class _DirectoryWatchHandler(FileSystemEventHandler):
             )
             filename = Path(src_path).name
             pattern_name = Path(self._pattern).name
-            
+
             if fnmatch.fnmatch(filename, pattern_name):
                 # Debounce: ignore if we've seen this file very recently (within 1 second)
                 current_time = time.time()
                 last_time = self._last_event_time.get(src_path, 0)
-                
+
                 if current_time - last_time < 1.0:
                     logger.debug(f"Ignoring duplicate creation event for: {src_path}")
                     return
-                
+
                 self._last_event_time[src_path] = current_time
-                
+
                 # Only notify if this is truly a new file we haven't seen
                 if src_path not in self._seen_files:
                     logger.info(f"New matching file detected: {src_path}")
@@ -122,7 +122,9 @@ class WildcardFileWatcher(QThread):
         self._file_handle: TextIO | None = None
         self._tail_only = tail_only
         self._tail_lines = tail_lines
-        self._dir_handler: _DirectoryWatchHandler | None = None  # Track handler for seen files
+        self._dir_handler: _DirectoryWatchHandler | None = (
+            None  # Track handler for seen files
+        )
 
         # Validate pattern
         pattern_path = Path(pattern)
@@ -307,13 +309,15 @@ class WildcardFileWatcher(QThread):
         pattern_path = Path(self._pattern)
         directory = str(pattern_path.parent)
 
-        self._dir_handler = _DirectoryWatchHandler(self._pattern, self._on_new_file_created)
-        
+        self._dir_handler = _DirectoryWatchHandler(
+            self._pattern, self._on_new_file_created
+        )
+
         # Mark current file as already seen to prevent duplicate notifications
         if self._current_file:
             self._dir_handler._seen_files.add(str(self._current_file))
             logger.debug(f"Marked initial file as seen: {self._current_file}")
-        
+
         self._observer = WatchdogObserver()
         self._observer.schedule(self._dir_handler, directory, recursive=False)
         self._observer.start()

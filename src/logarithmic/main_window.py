@@ -68,6 +68,10 @@ class TrackingModeDialog(QDialog):
         self.is_folder = is_folder
         self.tracking_mode = "wildcard" if is_folder else "dedicated"  # Default
         self.wildcard_pattern = ""
+        
+        # Type hints for optional radio buttons (None when is_folder=True)
+        self.dedicated_radio: QRadioButton | None = None
+        self.wildcard_radio: QRadioButton | None = None
 
         self._setup_ui()
 
@@ -102,7 +106,9 @@ class TrackingModeDialog(QDialog):
             self.dedicated_radio.toggled.connect(self._on_mode_changed)
             layout.addWidget(self.dedicated_radio)
 
-            self.wildcard_radio = QRadioButton("Wildcard - Track files matching a pattern in this folder")
+            self.wildcard_radio = QRadioButton(
+                "Wildcard - Track files matching a pattern in this folder"
+            )
             self.wildcard_radio.toggled.connect(self._on_mode_changed)
             layout.addWidget(self.wildcard_radio)
         else:
@@ -301,7 +307,9 @@ class MainWindow(QMainWindow):
 
         self.browse_folder_button = QPushButton("📁 Browse Folder")
         self.browse_folder_button.setFont(self._fonts.get_ui_font(10))
-        self.browse_folder_button.setToolTip("Select a folder to track files with wildcard pattern")
+        self.browse_folder_button.setToolTip(
+            "Select a folder to track files with wildcard pattern"
+        )
         self.browse_folder_button.clicked.connect(self._on_browse_folder)
         control_layout.addWidget(self.browse_folder_button)
         self._ui_elements.append(self.browse_folder_button)
@@ -375,6 +383,16 @@ class MainWindow(QMainWindow):
         # Tabbed interface
         self.tabs = QTabWidget()
         self.tabs.setFont(self._fonts.get_ui_font(10))
+        # Make tabs expand to fit content with larger fonts
+        self.tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #555555;
+            }
+            QTabBar::tab {
+                padding: 0.5em 1em;
+                min-width: 5em;
+            }
+        """)
         self._ui_elements.append(self.tabs)
 
         # === Logs Tab ===
@@ -439,14 +457,32 @@ class MainWindow(QMainWindow):
         log_font_layout.addStretch()
         self._ui_elements.append(self.log_font_label)
 
-        self.log_font_size_spin = QSpinBox()
-        self.log_font_size_spin.setRange(6, 24)
-        self.log_font_size_spin.setValue(9)
-        self.log_font_size_spin.setSuffix(" pt")
-        self.log_font_size_spin.setFont(self._fonts.get_ui_font(10))
-        self.log_font_size_spin.valueChanged.connect(self._on_log_font_size_changed)
-        log_font_layout.addWidget(self.log_font_size_spin)
-        self._ui_elements.append(self.log_font_size_spin)
+        # Current size display
+        self.log_font_size_value = QLabel("13 pt")
+        self.log_font_size_value.setFont(self._fonts.get_ui_font(10, bold=True))
+        self.log_font_size_value.setStyleSheet(
+            "padding: 0.3em 0.5em; background-color: #2b2b2b; border-radius: 0.2em;"
+        )
+        log_font_layout.addWidget(self.log_font_size_value)
+        self._ui_elements.append(self.log_font_size_value)
+
+        # Down button
+        self.log_font_size_down = QPushButton("▼")
+        self.log_font_size_down.setFont(self._fonts.get_ui_font(10))
+        self.log_font_size_down.setFixedWidth(40)
+        self.log_font_size_down.clicked.connect(lambda: self._change_log_font_size(-1))
+        log_font_layout.addWidget(self.log_font_size_down)
+        self._ui_elements.append(self.log_font_size_down)
+
+        # Up button
+        self.log_font_size_up = QPushButton("▲")
+        self.log_font_size_up.setFont(self._fonts.get_ui_font(10))
+        self.log_font_size_up.setFixedWidth(40)
+        self.log_font_size_up.clicked.connect(lambda: self._change_log_font_size(1))
+        log_font_layout.addWidget(self.log_font_size_up)
+        self._ui_elements.append(self.log_font_size_up)
+
+        self._log_font_size = 13  # Track current size
 
         font_sizes_layout.addLayout(log_font_layout)
 
@@ -458,14 +494,32 @@ class MainWindow(QMainWindow):
         ui_font_layout.addStretch()
         self._ui_elements.append(self.ui_font_label)
 
-        self.ui_font_size_spin = QSpinBox()
-        self.ui_font_size_spin.setRange(6, 18)
-        self.ui_font_size_spin.setValue(10)
-        self.ui_font_size_spin.setSuffix(" pt")
-        self.ui_font_size_spin.setFont(self._fonts.get_ui_font(10))
-        self.ui_font_size_spin.valueChanged.connect(self._on_ui_font_size_changed)
-        ui_font_layout.addWidget(self.ui_font_size_spin)
-        self._ui_elements.append(self.ui_font_size_spin)
+        # Current size display
+        self.ui_font_size_value = QLabel("13 pt")
+        self.ui_font_size_value.setFont(self._fonts.get_ui_font(10, bold=True))
+        self.ui_font_size_value.setStyleSheet(
+            "padding: 0.3em 0.5em; background-color: #2b2b2b; border-radius: 0.2em;"
+        )
+        ui_font_layout.addWidget(self.ui_font_size_value)
+        self._ui_elements.append(self.ui_font_size_value)
+
+        # Down button
+        self.ui_font_size_down = QPushButton("▼")
+        self.ui_font_size_down.setFont(self._fonts.get_ui_font(10))
+        self.ui_font_size_down.setFixedWidth(40)
+        self.ui_font_size_down.clicked.connect(lambda: self._change_ui_font_size(-1))
+        ui_font_layout.addWidget(self.ui_font_size_down)
+        self._ui_elements.append(self.ui_font_size_down)
+
+        # Up button
+        self.ui_font_size_up = QPushButton("▲")
+        self.ui_font_size_up.setFont(self._fonts.get_ui_font(10))
+        self.ui_font_size_up.setFixedWidth(40)
+        self.ui_font_size_up.clicked.connect(lambda: self._change_ui_font_size(1))
+        ui_font_layout.addWidget(self.ui_font_size_up)
+        self._ui_elements.append(self.ui_font_size_up)
+
+        self._ui_font_size = 13  # Track current size
 
         font_sizes_layout.addLayout(ui_font_layout)
 
@@ -477,16 +531,36 @@ class MainWindow(QMainWindow):
         status_font_layout.addStretch()
         self._ui_elements.append(self.status_font_label)
 
-        self.status_font_size_spin = QSpinBox()
-        self.status_font_size_spin.setRange(6, 14)
-        self.status_font_size_spin.setValue(9)
-        self.status_font_size_spin.setSuffix(" pt")
-        self.status_font_size_spin.setFont(self._fonts.get_ui_font(10))
-        self.status_font_size_spin.valueChanged.connect(
-            self._on_status_font_size_changed
+        # Current size display
+        self.status_font_size_value = QLabel("13 pt")
+        self.status_font_size_value.setFont(self._fonts.get_ui_font(10, bold=True))
+        self.status_font_size_value.setStyleSheet(
+            "padding: 0.3em 0.5em; background-color: #2b2b2b; border-radius: 0.2em;"
         )
-        status_font_layout.addWidget(self.status_font_size_spin)
-        self._ui_elements.append(self.status_font_size_spin)
+        status_font_layout.addWidget(self.status_font_size_value)
+        self._ui_elements.append(self.status_font_size_value)
+
+        # Down button
+        self.status_font_size_down = QPushButton("▼")
+        self.status_font_size_down.setFont(self._fonts.get_ui_font(10))
+        self.status_font_size_down.setFixedWidth(40)
+        self.status_font_size_down.clicked.connect(
+            lambda: self._change_status_font_size(-1)
+        )
+        status_font_layout.addWidget(self.status_font_size_down)
+        self._ui_elements.append(self.status_font_size_down)
+
+        # Up button
+        self.status_font_size_up = QPushButton("▲")
+        self.status_font_size_up.setFont(self._fonts.get_ui_font(10))
+        self.status_font_size_up.setFixedWidth(40)
+        self.status_font_size_up.clicked.connect(
+            lambda: self._change_status_font_size(1)
+        )
+        status_font_layout.addWidget(self.status_font_size_up)
+        self._ui_elements.append(self.status_font_size_up)
+
+        self._status_font_size = 13  # Track current size
 
         font_sizes_layout.addLayout(status_font_layout)
 
@@ -611,7 +685,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(settings_tab, "⚙️ Settings")
 
         layout.addWidget(self.tabs)
-        
+
         # Set initial button visibility based on default provider type
         self._on_provider_type_changed(self.provider_combo.currentIndex())
 
@@ -664,9 +738,9 @@ class MainWindow(QMainWindow):
             self,
             "Select Log File",
             "",
-            "All Files (*);;Log Files (*.log);;Text Files (*.txt)"
+            "All Files (*);;Log Files (*.log);;Text Files (*.txt)",
         )
-        
+
         logger.info(f"Selected file: {file_path}")
         if file_path:
             # Show tracking mode dialog
@@ -678,12 +752,9 @@ class MainWindow(QMainWindow):
         """Handle browse folder button click."""
         logger.info("Browse folder button clicked")
         folder_path = QFileDialog.getExistingDirectory(
-            self,
-            "Select Folder to Track",
-            "",
-            QFileDialog.Option.ShowDirsOnly
+            self, "Select Folder to Track", "", QFileDialog.Option.ShowDirsOnly
         )
-        
+
         logger.info(f"Selected folder: {folder_path}")
         if folder_path:
             # Show tracking mode dialog for folder (wildcard only)
@@ -802,7 +873,6 @@ class MainWindow(QMainWindow):
         self.log_list.addItem(item)
         self.log_list.setItemWidget(item, widget)
 
-
     def _add_kubernetes_log(self, input_str: str) -> None:
         """Add a Kubernetes pod log source.
 
@@ -893,12 +963,11 @@ class MainWindow(QMainWindow):
 
             # Save to settings
             self._settings.add_tracked_log(path_key)
-            
+
             # Save provider config (including kubeconfig path) for session restore
             if dialog.kubeconfig_path:
                 self._settings.set_provider_config(
-                    path_key,
-                    {"kubeconfig_path": dialog.kubeconfig_path}
+                    path_key, {"kubeconfig_path": dialog.kubeconfig_path}
                 )
 
             mode_desc = "app label" if tracking_mode == "app" else "pod"
@@ -1599,7 +1668,9 @@ class MainWindow(QMainWindow):
 
             # Get saved provider config (e.g., kubeconfig path)
             saved_config = self._settings.get_provider_config(path_key)
-            kubeconfig_path = saved_config.get("kubeconfig_path") if saved_config else None
+            kubeconfig_path = (
+                saved_config.get("kubeconfig_path") if saved_config else None
+            )
 
             # Create provider config
             config = KubernetesProvider.create_config(
@@ -1952,7 +2023,7 @@ class MainWindow(QMainWindow):
                 continue
 
             path_obj = Path(path_str)
-            
+
             # Support both files and folders
             if path_obj.is_file():
                 # Show tracking mode dialog for file
@@ -2153,7 +2224,7 @@ class MainWindow(QMainWindow):
         # Wait for all provider threads to finish (with timeout)
         for path_key, provider in self._providers.items():
             # Check if provider has a thread to wait for
-            if hasattr(provider, 'wait'):
+            if hasattr(provider, "wait"):
                 logger.debug(f"Waiting for provider thread to finish: {path_key}")
                 # K8s threads may be blocked in socket reads, give them more time
                 timeout = 5000 if path_key.startswith("k8s://") else 3000
@@ -2393,78 +2464,111 @@ class MainWindow(QMainWindow):
         """Load font sizes from settings and apply to UI."""
         font_sizes = self._settings.get_font_sizes()
 
-        # Update spin boxes (block signals to prevent triggering save)
-        self.log_font_size_spin.blockSignals(True)
-        self.ui_font_size_spin.blockSignals(True)
-        self.status_font_size_spin.blockSignals(True)
+        # Update tracked sizes and labels
+        self._log_font_size = font_sizes.get("log_content", 13)
+        self._ui_font_size = font_sizes.get("ui_elements", 13)
+        self._status_font_size = font_sizes.get("status_bar", 13)
 
-        self.log_font_size_spin.setValue(font_sizes.get("log_content", 9))
-        self.ui_font_size_spin.setValue(font_sizes.get("ui_elements", 10))
-        self.status_font_size_spin.setValue(font_sizes.get("status_bar", 9))
-
-        self.log_font_size_spin.blockSignals(False)
-        self.ui_font_size_spin.blockSignals(False)
-        self.status_font_size_spin.blockSignals(False)
+        self.log_font_size_value.setText(f"{self._log_font_size} pt")
+        self.ui_font_size_value.setText(f"{self._ui_font_size} pt")
+        self.status_font_size_value.setText(f"{self._status_font_size} pt")
 
         logger.info(f"Loaded font sizes: {font_sizes}")
 
-    def _on_log_font_size_changed(self, size: int) -> None:
-        """Handle log content font size change."""
-        self._settings.set_font_size("log_content", size)
-        logger.info(f"Log content font size changed to {size}")
+        # Actually apply the font sizes to UI elements
+        self._apply_font_sizes(font_sizes)
 
-        # Update all open log viewer windows
-        for viewer in self._viewer_windows.values():
-            viewer.set_log_font_size(size)
-
-        # Update all group windows
-        for group_window in self._group_windows.values():
-            group_window.set_log_font_size(size)
-
-    def _on_ui_font_size_changed(self, size: int) -> None:
-        """Handle UI elements font size change."""
-        self._settings.set_font_size("ui_elements", size)
-        logger.info(f"UI elements font size changed to {size}")
-
-        # Update main window UI elements
-        self._update_main_window_fonts(size)
-
-        # Update all open log viewer windows
-        for viewer in self._viewer_windows.values():
-            viewer.set_ui_font_size(size)
-
-        # Update all group windows
-        for group_window in self._group_windows.values():
-            group_window.set_ui_font_size(size)
-
-    def _update_main_window_fonts(self, size: int) -> None:
-        """Update all main window UI element fonts.
+    def _apply_font_sizes(self, font_sizes: dict) -> None:
+        """Apply font sizes to all UI elements.
 
         Args:
-            size: New font size
+            font_sizes: Dictionary with log_content, ui_elements, and status_bar sizes
         """
-        # Update stored UI elements
-        for widget in self._ui_elements:
-            if isinstance(widget, QPushButton):
-                # Check if button should be bold
-                is_bold = widget in [
-                    self.save_session_button,
-                ]
-                widget.setFont(self._fonts.get_ui_font(size, bold=is_bold))
-            elif isinstance(widget, QLabel):
-                # Check if label should be bold or larger
-                if widget in [self.session_label, self.logs_label, self.groups_label]:
-                    widget.setFont(self._fonts.get_ui_font(size + 1, bold=True))
-                elif widget == self.font_sizes_title:
-                    widget.setFont(self._fonts.get_ui_font(size + 2, bold=True))
-                else:
-                    widget.setFont(self._fonts.get_ui_font(size))
-            else:
-                widget.setFont(self._fonts.get_ui_font(size))
+        log_size = font_sizes.get("log_content", 13)
+        ui_size = font_sizes.get("ui_elements", 13)
+        status_size = font_sizes.get("status_bar", 13)
+
+        # Apply UI element fonts
+        for element in self._ui_elements:
+            element.setFont(self._fonts.get_ui_font(ui_size))
+
+        # Apply to log viewers
+        for viewer in self._viewer_windows.values():
+            viewer.set_log_font_size(log_size)
+
+        # Apply to group windows
+        for group_window in self._group_windows.values():
+            group_window.set_log_font_size(log_size)
 
         # Refresh list items to update their fonts
         self._refresh_all_log_items()
         self._refresh_all_group_items()
+
+    def _change_log_font_size(self, delta: int) -> None:
+        """Change log content font size by delta.
+
+        Args:
+            delta: Amount to change (+1 or -1)
+        """
+        new_size = max(6, min(24, self._log_font_size + delta))
+        if new_size == self._log_font_size:
+            return
+
+        self._log_font_size = new_size
+        self.log_font_size_value.setText(f"{new_size} pt")
+        self._settings.set_font_size("log_content", new_size)
+        logger.info(f"Log content font size changed to {new_size}")
+
+        # Update all open log viewer windows
+        for viewer in self._viewer_windows.values():
+            viewer.set_log_font_size(new_size)
+
+        # Update all group windows
+        for group_window in self._group_windows.values():
+            group_window.set_log_font_size(new_size)
+
+    def _change_ui_font_size(self, delta: int) -> None:
+        """Change UI elements font size by delta.
+
+        Args:
+            delta: Amount to change (+1 or -1)
+        """
+        new_size = max(6, min(24, self._ui_font_size + delta))
+        if new_size == self._ui_font_size:
+            return
+
+        self._ui_font_size = new_size
+        self.ui_font_size_value.setText(f"{new_size} pt")
+        self._settings.set_font_size("ui_elements", new_size)
+        logger.info(f"UI elements font size changed to {new_size}")
+
+        # Update all UI elements
+        for element in self._ui_elements:
+            element.setFont(self._fonts.get_ui_font(new_size))
+
+        # Update tab widgets
+        self.tabs.setFont(self._fonts.get_ui_font(new_size))
+
+        # Update log list items
+        self._refresh_all_log_items()
+
+        # Update group list items
+        self._refresh_all_group_items()
+
+    def _change_status_font_size(self, delta: int) -> None:
+        """Change status bar font size by delta.
+
+        Args:
+            delta: Amount to change (+1 or -1)
+        """
+        new_size = max(6, min(24, self._status_font_size + delta))
+        if new_size == self._status_font_size:
+            return
+
+        self._status_font_size = new_size
+        self.status_font_size_value.setText(f"{new_size} pt")
+        self._settings.set_font_size("status_bar", new_size)
+        logger.info(f"Status bar font size changed to {new_size}")
 
     def _on_status_font_size_changed(self, size: int) -> None:
         """Handle status bar font size change."""

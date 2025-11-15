@@ -67,13 +67,16 @@ class K8sSelectorDialog(QDialog):
                 if saved_path:
                     self.kubeconfig_path = saved_path
                     import os
+
                     self.kubeconfig_label.setText(f"✅ {os.path.basename(saved_path)}")
-                    self.kubeconfig_label.setStyleSheet("color: green; font-weight: bold;")
+                    self.kubeconfig_label.setStyleSheet(
+                        "color: green; font-weight: bold;"
+                    )
                     self._set_controls_enabled(True)
                     self._show_info("Loading namespaces...")
                     self._load_namespaces()
                     return
-            
+
             # No saved kubeconfig - require selection
             self._show_info(
                 "Please select your kubeconfig file to connect to Kubernetes"
@@ -86,7 +89,7 @@ class K8sSelectorDialog(QDialog):
         # Kubeconfig file selection (for sandboxing compliance)
         kubeconfig_group = QGroupBox("⚠️ Kubeconfig File (Required)")
         kubeconfig_layout = QVBoxLayout(kubeconfig_group)
-        
+
         kubeconfig_desc = QLabel(
             "Due to app sandboxing, you must explicitly select your kubeconfig file.\n"
             "This is typically located at ~/.kube/config"
@@ -94,19 +97,21 @@ class K8sSelectorDialog(QDialog):
         kubeconfig_desc.setWordWrap(True)
         kubeconfig_desc.setStyleSheet("color: #666; margin-bottom: 10px;")
         kubeconfig_layout.addWidget(kubeconfig_desc)
-        
+
         button_layout = QHBoxLayout()
         self.kubeconfig_label = QLabel("(not selected)")
         self.kubeconfig_label.setStyleSheet("color: red; font-weight: bold;")
         button_layout.addWidget(self.kubeconfig_label)
         button_layout.addStretch()
-        
+
         self.browse_kubeconfig_btn = QPushButton("📄 Select Kubeconfig File")
-        self.browse_kubeconfig_btn.setToolTip("Select your kubeconfig file to connect to Kubernetes")
-        self.browse_kubeconfig_btn.setStyleSheet("font-weight: bold; padding: 8px;")
+        self.browse_kubeconfig_btn.setToolTip(
+            "Select your kubeconfig file to connect to Kubernetes"
+        )
+        self.browse_kubeconfig_btn.setStyleSheet("font-weight: bold; padding: 0.6em;")
         self.browse_kubeconfig_btn.clicked.connect(self._on_browse_kubeconfig)
         button_layout.addWidget(self.browse_kubeconfig_btn)
-        
+
         kubeconfig_layout.addLayout(button_layout)
         layout.addWidget(kubeconfig_group)
 
@@ -180,7 +185,7 @@ class K8sSelectorDialog(QDialog):
 
         self.ok_button = button_box.button(QDialogButtonBox.StandardButton.Ok)
         self.ok_button.setEnabled(False)
-        
+
         # Disable all controls until kubeconfig is selected
         self._set_controls_enabled(False)
 
@@ -361,7 +366,7 @@ class K8sSelectorDialog(QDialog):
 
     def _set_controls_enabled(self, enabled: bool) -> None:
         """Enable or disable all controls except kubeconfig selection.
-        
+
         Args:
             enabled: True to enable controls, False to disable
         """
@@ -376,22 +381,23 @@ class K8sSelectorDialog(QDialog):
         """Handle browse kubeconfig button click."""
         from pathlib import Path
         import os
-        
+
         # Check if default kubeconfig exists
         default_kubeconfig = Path.home() / ".kube" / "config"
-        
+
         # If default exists, offer to use it directly
         if default_kubeconfig.exists():
             from PySide6.QtWidgets import QMessageBox
+
             reply = QMessageBox.question(
                 self,
                 "Use Default Kubeconfig?",
                 f"Found kubeconfig at default location:\n{default_kubeconfig}\n\n"
                 "Would you like to use this file?",
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.Yes
+                QMessageBox.StandardButton.Yes,
             )
-            
+
             if reply == QMessageBox.StandardButton.Yes:
                 file_path = str(default_kubeconfig)
             else:
@@ -400,6 +406,7 @@ class K8sSelectorDialog(QDialog):
         else:
             # No default found, show instructions and browse
             from PySide6.QtWidgets import QMessageBox
+
             msg = QMessageBox(self)
             msg.setIcon(QMessageBox.Icon.Information)
             msg.setWindowTitle("Locating Kubeconfig")
@@ -413,51 +420,51 @@ class K8sSelectorDialog(QDialog):
             )
             msg.setStandardButtons(QMessageBox.StandardButton.Ok)
             msg.exec()
-            
+
             file_path = self._browse_for_kubeconfig()
-        
+
         if file_path:
             self.kubeconfig_path = file_path
             self.kubeconfig_label.setText(f"✅ {os.path.basename(file_path)}")
             self.kubeconfig_label.setStyleSheet("color: green; font-weight: bold;")
-            
+
             # Save globally for future dialogs
             if self._settings:
                 self._settings.set_kubeconfig_path(file_path)
-            
+
             # Enable controls now that we have kubeconfig
             self._set_controls_enabled(True)
-            
+
             # Load namespaces with selected config
             self._show_info("Loading namespaces...")
             self._load_namespaces()
-    
+
     def _browse_for_kubeconfig(self) -> str:
         """Open file browser for kubeconfig selection.
-        
+
         Returns:
             Selected file path or empty string if cancelled
         """
         from pathlib import Path
-        
+
         # Start in home directory
         home_dir = str(Path.home())
-        
+
         # Create dialog with options to show hidden files
         dialog = QFileDialog(self)
         dialog.setWindowTitle("Select Kubeconfig File")
         dialog.setDirectory(home_dir)
         dialog.setNameFilter("Config Files (config);;All Files (*)")
         dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
-        
+
         # Try to enable showing hidden files (platform-dependent)
         dialog.setOption(QFileDialog.Option.DontUseNativeDialog, False)
-        
+
         if dialog.exec():
             files = dialog.selectedFiles()
             if files:
                 return files[0]
-        
+
         return ""
 
     def _on_namespace_changed(self, namespace: str) -> None:

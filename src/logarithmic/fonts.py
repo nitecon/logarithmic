@@ -1,6 +1,7 @@
 """Font management - loads and provides custom fonts for the application."""
 
 import logging
+import platform
 import sys
 from pathlib import Path
 
@@ -8,6 +9,26 @@ from PySide6.QtGui import QFont
 from PySide6.QtGui import QFontDatabase
 
 logger = logging.getLogger(__name__)
+
+
+def get_platform_font_multiplier() -> float:
+    """Get font size multiplier based on platform.
+
+    macOS renders fonts smaller than Windows/Linux at the same point size,
+    so we need to scale up on macOS for consistent appearance.
+
+    Returns:
+        Font size multiplier (1.0 = no scaling)
+    """
+    system = platform.system()
+    if system == "Darwin":  # macOS
+        return 1.3  # Scale up by 30% on macOS
+    elif system == "Windows":
+        return 1.0  # Windows baseline
+    elif system == "Linux":
+        return 1.0  # Linux similar to Windows
+    else:
+        return 1.0  # Default for unknown platforms
 
 
 def get_resource_path(relative_path: str) -> Path:
@@ -63,6 +84,12 @@ class FontManager:
         self._oxanium_id = None
         self._red_hat_mono_id = None
 
+        # Get platform-specific font multiplier
+        self._font_multiplier = get_platform_font_multiplier()
+        logger.info(
+            f"Platform: {platform.system()}, Font multiplier: {self._font_multiplier}"
+        )
+
         self._load_fonts()
         self._initialized = True
 
@@ -106,48 +133,51 @@ class FontManager:
         else:
             logger.warning(f"Red Hat Mono font not found at {red_hat_path}")
 
-    def get_title_font(self, size: int = 12, bold: bool = False) -> QFont:
+    def get_title_font(self, size: int = 13, bold: bool = False) -> QFont:
         """Get font for window titles and headers (Michroma).
 
         Args:
-            size: Font size in points
+            size: Font size in points (will be scaled for platform)
             bold: Whether to make the font bold
 
         Returns:
             QFont configured for titles
         """
-        font = QFont("Michroma", size)
+        scaled_size = int(size * self._font_multiplier)
+        font = QFont("Michroma", scaled_size)
         if bold:
             font.setWeight(QFont.Weight.Bold)
         font.setStyleHint(QFont.StyleHint.SansSerif)
         return font
 
-    def get_ui_font(self, size: int = 10, bold: bool = False) -> QFont:
+    def get_ui_font(self, size: int = 13, bold: bool = False) -> QFont:
         """Get font for UI elements (Oxanium).
 
         Args:
-            size: Font size in points
+            size: Font size in points (will be scaled for platform)
             bold: Whether to make the font bold
 
         Returns:
             QFont configured for UI elements
         """
-        font = QFont("Oxanium", size)
+        scaled_size = int(size * self._font_multiplier)
+        font = QFont("Oxanium", scaled_size)
         if bold:
             font.setWeight(QFont.Weight.Bold)
         font.setStyleHint(QFont.StyleHint.SansSerif)
         return font
 
-    def get_mono_font(self, size: int = 9) -> QFont:
+    def get_mono_font(self, size: int = 13) -> QFont:
         """Get monospace font for log content (Red Hat Mono).
 
         Args:
-            size: Font size in points
+            size: Font size in points (will be scaled for platform)
 
         Returns:
             QFont configured for monospace content
         """
-        font = QFont("Red Hat Mono", size)
+        scaled_size = int(size * self._font_multiplier)
+        font = QFont("Red Hat Mono", scaled_size)
         font.setStyleHint(QFont.StyleHint.Monospace)
         return font
 

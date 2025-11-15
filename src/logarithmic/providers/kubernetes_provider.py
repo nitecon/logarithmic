@@ -361,10 +361,10 @@ class KubernetesProvider(LogProvider):
 
     def wait(self, timeout_ms: int = 5000) -> bool:
         """Wait for the streamer thread to finish.
-        
+
         Args:
             timeout_ms: Timeout in milliseconds
-            
+
         Returns:
             True if thread finished, False if timeout
         """

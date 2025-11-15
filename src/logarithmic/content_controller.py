@@ -89,8 +89,8 @@ class ContentController:
                 background-color: #4CAF50;
                 color: white;
                 font-weight: bold;
-                padding: 5px 15px;
-                border-radius: 3px;
+                padding: 0.4em 1.2em;
+                border-radius: 0.3em;
             }
             QPushButton:hover {
                 background-color: #45a049;
@@ -140,7 +140,7 @@ class ContentController:
             QLabel {
                 background-color: #2b2b2b;
                 color: #cccccc;
-                padding: 5px;
+                padding: 0.4em;
                 border-top: 1px solid #555555;
             }
         """)

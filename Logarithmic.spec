@@ -90,13 +90,12 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 
-# --- EXE (Now Cross-Platform) ---
+# --- EXE (Cross-Platform, Onedir Mode) ---
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,  # <-- Use onedir mode (better for macOS App Store)
     name='Logarithmic',
     debug=False,
     bootloader_ignore_signals=False,
@@ -113,11 +112,23 @@ exe = EXE(
     **windows_args,         # <-- Unpacks Windows-specific args (version, UAC), does nothing on other OSes
 )
 
-# --- Output: BUNDLE (Mac) or COLLECT (Windows/Linux) ---
+# --- COLLECT: Gather all files (needed for both platforms) ---
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='Logarithmic'
+)
+
+# --- Output: BUNDLE (Mac) or use COLLECT as-is (Windows/Linux) ---
 if sys.platform == 'darwin':
-    # Create macOS .app bundle
+    # Create macOS .app bundle from COLLECT output
     app = BUNDLE(
-        exe,
+        coll,
         name='Logarithmic.app',
         icon=icon_file,
         bundle_identifier=bundle_id,
@@ -125,16 +136,4 @@ if sys.platform == 'darwin':
         info_plist=info_plist_file,
         # Note: codesign_identity and entitlements_file are passed
         # from the EXE block automatically.
-    )
-else:
-    # Create a standard output folder for Windows and Linux
-    coll = COLLECT(
-        exe,
-        a.binaries,
-        a.zipfiles,
-        a.datas,
-        strip=False,
-        upx=True,
-        upx_exclude=[],
-        name='Logarithmic'  # <-- This will create the 'dist/Logarithmic' folder
     )

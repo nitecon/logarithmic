@@ -50,6 +50,17 @@
     <key>LSBackgroundOnly</key>
     <false/>
     
+    <!-- Ensure app shows in Dock and menu bar -->
+    <key>LSUIElement</key>
+    <false/>
+    
+    <!-- Allow arbitrary network loads for Kubernetes API -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <true/>
+    </dict>
+    
     <!-- Document Types (for opening log files) -->
     <key>CFBundleDocumentTypes</key>
     <array>

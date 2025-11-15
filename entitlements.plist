@@ -3,8 +3,10 @@
 <plist version="1.0">
 <dict>
     <!-- App Sandbox is required for Mac App Store -->
+    <!-- TEMPORARILY DISABLED: Testing network connectivity to Kubernetes -->
+    <!-- The sandbox may be blocking connections even with network.client entitlement -->
     <key>com.apple.security.app-sandbox</key>
-    <true/>
+    <false/>
     
     <!-- File access permissions -->
     <key>com.apple.security.files.user-selected.read-write</key>
@@ -21,7 +23,7 @@
     <key>com.apple.security.network.client</key>
     <true/>
     
-    <!-- Allow the app to be hardened -->
+    <!-- Allow the app to be hardened (required for Python/Qt) -->
     <key>com.apple.security.cs.allow-jit</key>
     <true/>
     

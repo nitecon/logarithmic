@@ -118,6 +118,16 @@ class LogGroupWindow(QWidget):
         # Center: Tab widget (for tabbed mode) or plain text (for combined mode)
         self.tab_widget = QTabWidget()
         self.tab_widget.setFont(self._fonts.get_ui_font(10))
+        # Make tabs expand to fit content with larger fonts
+        self.tab_widget.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #555555;
+            }
+            QTabBar::tab {
+                padding: 0.5em 1em;
+                min-width: 5em;
+            }
+        """)
         layout.addWidget(self.tab_widget)
 
         self._update_status()
@@ -218,7 +228,7 @@ class LogGroupWindow(QWidget):
             return
 
         self._last_mode_switch_time = current_time
-        
+
         self._mode = "combined"
         self.mode_button.setText("Switch to Tabbed Mode")
 
@@ -251,7 +261,9 @@ class LogGroupWindow(QWidget):
             # Disconnect default clear behavior
             self._combined_controller._clear_btn.clicked.disconnect()
             # Connect to our custom clear handler
-            self._combined_controller._clear_btn.clicked.connect(self._on_combined_clear)
+            self._combined_controller._clear_btn.clicked.connect(
+                self._on_combined_clear
+            )
 
         # Start with empty combined view - warning will be shown only when user clears
         logger.debug(f"Initializing empty combined view for group {self.group_name}")
@@ -309,7 +321,9 @@ class LogGroupWindow(QWidget):
                     filename = Path(path).name
                     # Update combined view line count
                     self._combined_line_count += content.count("\n")
-                    logger.debug(f"Appending {len(content)} chars to combined view from {filename}")
+                    logger.debug(
+                        f"Appending {len(content)} chars to combined view from {filename}"
+                    )
                     # ContentController will handle prefixing with source
                     self._combined_controller.append_text(content, source=filename)
 

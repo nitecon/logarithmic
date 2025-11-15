@@ -69,9 +69,9 @@ class Settings:
                 "log_groups": {},  # path_key -> group_name mapping
                 "main_window_position": None,  # Main window position/size
                 "font_sizes": {  # Font size settings
-                    "log_content": 9,
-                    "ui_elements": 10,
-                    "status_bar": 9,
+                    "log_content": 13,
+                    "ui_elements": 13,
+                    "status_bar": 13,
                 },
                 "theme": {  # Theme/color settings
                     "error_color": "#FF4444",  # Red for errors
@@ -572,7 +572,10 @@ class Settings:
         Args:
             path_key: Unique identifier for the log source
         """
-        if "provider_configs" in self._data and path_key in self._data["provider_configs"]:
+        if (
+            "provider_configs" in self._data
+            and path_key in self._data["provider_configs"]
+        ):
             del self._data["provider_configs"][path_key]
             self._save()
 

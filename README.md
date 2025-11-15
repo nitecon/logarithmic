@@ -59,7 +59,7 @@ No need to close and reopen the application or manually hunt for off-screen wind
 
 - **[Release Process](.github/RELEASE.md)** - How to build and release
 - **[Coding Guidelines](Docs/CodingGuidelines.md)** - Python development standards
-- **[MCP Server Quick Start](Docs/MCP_QUICKSTART.md)** - Get started with AI integration
+- **[MCP Server Quick Start](Docs/MCP_Quickstart.md)** - Get started with AI integration
 - **[MCP Server Details](Docs/MCP_Details.md)** - Technical documentation for MCP server
 
 ## 📸 Screenshots

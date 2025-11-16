@@ -61,6 +61,7 @@ No need to close and reopen the application or manually hunt for off-screen wind
 - **[Coding Guidelines](Docs/CodingGuidelines.md)** - Python development standards
 - **[MCP Server Quick Start](Docs/MCP_Quickstart.md)** - Get started with AI integration
 - **[MCP Server Details](Docs/MCP_Details.md)** - Technical documentation for MCP server
+- **[App Encryption Documentation](Docs/AppEncrDocs.md)** - Encryption/export usage details
 
 ## 📸 Screenshots
 

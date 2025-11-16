@@ -76,6 +76,9 @@ if sys.platform == 'darwin':
         'NSHighResolutionCapable': True,
         'LSBackgroundOnly': False,
         'LSUIElement': False,
+
+        # Export Compliance
+        'ITSAppUsesNonExemptEncryption': False,
         
         # Network (for sandbox)
         'NSAppTransportSecurity': {

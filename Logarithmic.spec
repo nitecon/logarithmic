@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 import os
-import sys  # <-- Import sys to check the OS
+import sys  
 from pathlib import Path
 
 # --- Cross-Platform Setup ---
@@ -51,6 +51,60 @@ if sys.platform == 'darwin':
         'codesign_identity': os.environ.get('APP_CERT'),
         'entitlements_file': 'entitlements.plist',
     }
+    info_plist_dict = {
+        # Bundle Information
+        'CFBundleName': 'Logarithmic',
+        'CFBundleDisplayName': 'Logarithmic',
+        'CFBundleIdentifier': bundle_id,
+        
+        # This is the FIX: Set BOTH version keys from your git tag
+        'CFBundleVersion': APP_VERSION,
+        'CFBundleShortVersionString': APP_VERSION,
+        
+        'CFBundlePackageType': 'APPL',
+        'CFBundleSignature': '????',
+        'CFBundleExecutable': 'Logarithmic',
+        'CFBundleIconFile': icon_file,
+        
+        # Application Information
+        'NSHumanReadableCopyright': 'Copyright © 2025 Willem J Hattingh. All rights reserved.',
+        'LSMinimumSystemVersion': '12.0',
+        'LSApplicationCategoryType': 'public.app-category.developer-tools',
+        
+        # UI Configuration
+        'NSPrincipalClass': 'NSApplication',
+        'NSHighResolutionCapable': True,
+        'LSBackgroundOnly': False,
+        'LSUIElement': False,
+        
+        # Network (for sandbox)
+        'NSAppTransportSecurity': {
+            'NSAllowsArbitraryLoads': True
+        },
+        
+        # Document Types (for sandbox and file association)
+        'CFBundleDocumentTypes': [
+            {
+                'CFBundleTypeName': 'Log File',
+                'CFBundleTypeRole': 'Viewer',
+                'LSItemContentTypes': [
+                    'public.log',
+                    'public.plain-text',
+                ],
+                'LSHandlerRank': 'Alternate'
+            }
+        ],
+        'UTExportedTypeDeclarations': [
+            {
+                'UTTypeIdentifier': 'public.log',
+                'UTTypeDescription': 'Log File',
+                'UTTypeConformsTo': ['public.plain-text'],
+                'UTTypeTagSpecification': {
+                    'public.filename-extension': ['log']
+                }
+            }
+        ]
+    }
 elif sys.platform == 'win32':
     icon_file = 'logo.ico'
     # Windows-specific metadata for version info and UAC
@@ -59,10 +113,6 @@ elif sys.platform == 'win32':
         'version': APP_VERSION,
     }
 elif sys.platform.startswith('linux'):
-    # Linux uses .png for icons, but not in the PyInstaller build itself.
-    # Icon should be specified in your .desktop file (e.g., /usr/share/applications/logarithmic.desktop)
-    # and placed in /usr/share/icons/ or /usr/share/pixmaps/ during package installation.
-    # Example .desktop entry: Icon=/usr/share/pixmaps/logarithmic.png
     icon_file = None
 
 # --- Your Font Logic (This is great, no changes needed) ---
@@ -95,7 +145,7 @@ exe = EXE(
     pyz,
     a.scripts,
     [],
-    exclude_binaries=True,  # <-- Use onedir mode (better for macOS App Store)
+    exclude_binaries=True,
     name='Logarithmic',
     debug=False,
     bootloader_ignore_signals=False,
@@ -107,33 +157,35 @@ exe = EXE(
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
-    icon=icon_file,         # <-- Uses our conditional icon
+    icon=icon_file,        
     **signing_args,         # <-- Unpacks Mac signing args, does nothing on other OSes
     **windows_args,         # <-- Unpacks Windows-specific args (version, UAC), does nothing on other OSes
 )
 
-# --- COLLECT: Gather all files (needed for both platforms) ---
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='Logarithmic'
-)
-
-# --- Output: BUNDLE (Mac) or use COLLECT as-is (Windows/Linux) ---
+# --- Output: BUNDLE (Mac) or COLLECT (Windows/Linux) ---
 if sys.platform == 'darwin':
-    # Create macOS .app bundle from COLLECT output
+    # Create macOS .app bundle
     app = BUNDLE(
-        coll,
+        exe,
+        a.binaries,         # <-- Pass binaries from Analysis
+        a.zipfiles,         # <-- Pass zipfiles from Analysis
+        a.datas,            # <-- Pass datas from Analysis
         name='Logarithmic.app',
         icon=icon_file,
         bundle_identifier=bundle_id,
-        version=APP_VERSION,
-        info_plist=info_plist_file,
-        # Note: codesign_identity and entitlements_file are passed
-        # from the EXE block automatically.
+        info_plist=info_plist_dict,
+        datas_symlinks=False
+        # Note: signing_args are in exe and will be used
+    )
+else:
+    # Create a standard output folder for Windows and Linux
+    coll = COLLECT(
+        exe,
+        a.binaries,
+        a.zipfiles,
+        a.datas,
+        strip=False,
+        upx=True,
+        upx_exclude=[],
+        name='Logarithmic'  # <-- This will create the 'dist/Logarithmic' folder
     )

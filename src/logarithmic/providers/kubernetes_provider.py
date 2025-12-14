@@ -214,7 +214,11 @@ class K8sLogStreamer(QThread):
             retry_count = 0
             max_pod_retries = 3
 
-            while self._running and pod_name in active_threads and retry_count < max_pod_retries:
+            while (
+                self._running
+                and pod_name in active_threads
+                and retry_count < max_pod_retries
+            ):
                 try:
                     w = watch.Watch()
                     kwargs = {
@@ -316,11 +320,16 @@ class K8sLogStreamer(QThread):
 
                         if event_type in ("ADDED", "MODIFIED"):
                             # Only stream from Running pods
-                            if pod_phase == "Running" and pod_name not in active_threads:
+                            if (
+                                pod_phase == "Running"
+                                and pod_name not in active_threads
+                            ):
                                 logger.info(f"New running pod detected: {pod_name}")
                                 # Start streaming in a separate thread
                                 thread = threading.Thread(
-                                    target=stream_pod_logs, args=(pod_name,), daemon=True
+                                    target=stream_pod_logs,
+                                    args=(pod_name,),
+                                    daemon=True,
                                 )
                                 active_threads[pod_name] = thread
                                 thread.start()

@@ -113,148 +113,268 @@ class K8sLogStreamer(QThread):
             )
 
     def _stream_single_pod_logs(self, v1: "client.CoreV1Api") -> None:
-        """Stream logs from a single pod.
+        """Stream logs from a single pod with retry logic.
 
         Args:
             v1: Kubernetes CoreV1Api client
         """
-        w = watch.Watch()
+        import time
 
-        kwargs = {
-            "name": self._pod_name,
-            "namespace": self._namespace,
-            "follow": True,
-            "tail_lines": self._tail_lines,
-            "_preload_content": False,
-        }
+        retry_count = 0
+        retry_delay = 5
 
-        if self._container:
-            kwargs["container"] = self._container
+        while self._running:
+            try:
+                w = watch.Watch()
 
-        for line in w.stream(v1.read_namespaced_pod_log, **kwargs):
-            if not self._running:
-                break
+                kwargs = {
+                    "name": self._pod_name,
+                    "namespace": self._namespace,
+                    "follow": True,
+                    "tail_lines": self._tail_lines if retry_count == 0 else 10,
+                    "_preload_content": False,
+                }
 
-            if self._paused:
-                continue
+                if self._container:
+                    kwargs["container"] = self._container
 
-            # Add newline if not present
-            if not line.endswith("\n"):
-                line += "\n"
+                logger.info(
+                    f"Starting single pod log stream for {self._namespace}/{self._pod_name}"
+                )
 
-            # Publish to log manager
-            self._log_manager.publish_content(self._path_key, line)
-            self.new_lines.emit(line)
+                for line in w.stream(v1.read_namespaced_pod_log, **kwargs):
+                    if not self._running:
+                        return
+
+                    if self._paused:
+                        continue
+
+                    # Reset retry count on successful read
+                    retry_count = 0
+
+                    # Add newline if not present
+                    if not line.endswith("\n"):
+                        line += "\n"
+
+                    # Publish to log manager
+                    self._log_manager.publish_content(self._path_key, line)
+                    self.new_lines.emit(line)
+
+                # Stream ended normally (pod terminated or connection closed)
+                logger.debug("Pod log stream ended, checking if should reconnect...")
+
+            except ApiException as e:
+                if not self._running:
+                    return
+                retry_count += 1
+                if e.status == 404:
+                    # Pod no longer exists, wait and retry in case it restarts
+                    logger.warning(
+                        f"Pod {self._pod_name} not found, waiting for recreation..."
+                    )
+                    self._log_manager.publish_stream_interrupted(
+                        self._path_key, f"Pod not found: {self._pod_name}"
+                    )
+                else:
+                    logger.error(
+                        f"Error streaming pod logs (retry {retry_count}): {e.reason}"
+                    )
+                time.sleep(min(retry_delay * retry_count, 30))
+
+            except Exception as e:
+                if not self._running:
+                    return
+                retry_count += 1
+                logger.error(
+                    f"Unexpected error streaming pod logs (retry {retry_count}): {e}",
+                    exc_info=True,
+                )
+                time.sleep(min(retry_delay * retry_count, 30))
 
     def _stream_label_selector_logs(self, v1: "client.CoreV1Api") -> None:
         """Stream logs from all pods matching a label selector.
 
         This mimics `kubectl logs -f -l app=myapp` behavior.
         Continuously watches for pod changes and streams from new pods.
+        Includes retry logic for watch connection failures.
 
         Args:
             v1: Kubernetes CoreV1Api client
         """
         import threading
-        from queue import Queue
+        import time
 
         # Track active streaming threads
         active_threads: dict[str, threading.Thread] = {}
-        Queue()
+        retry_delay = 5  # seconds between retries
 
         def stream_pod_logs(pod_name: str) -> None:
             """Stream logs from a single pod in a separate thread."""
             logger.info(f"Starting log stream for pod: {pod_name}")
-            try:
-                w = watch.Watch()
-                kwargs = {
-                    "name": pod_name,
-                    "namespace": self._namespace,
-                    "follow": True,
-                    "tail_lines": self._tail_lines,
-                    "_preload_content": False,
-                }
+            retry_count = 0
+            max_pod_retries = 3
 
-                for line in w.stream(v1.read_namespaced_pod_log, **kwargs):
-                    if not self._running or pod_name not in active_threads:
+            while self._running and pod_name in active_threads and retry_count < max_pod_retries:
+                try:
+                    w = watch.Watch()
+                    kwargs = {
+                        "name": pod_name,
+                        "namespace": self._namespace,
+                        "follow": True,
+                        "tail_lines": self._tail_lines if retry_count == 0 else 10,
+                        "_preload_content": False,
+                    }
+
+                    for line in w.stream(v1.read_namespaced_pod_log, **kwargs):
+                        if not self._running or pod_name not in active_threads:
+                            return
+
+                        if self._paused:
+                            continue
+
+                        # Reset retry count on successful read
+                        retry_count = 0
+
+                        # Add newline if not present
+                        if not line.endswith("\n"):
+                            line += "\n"
+
+                        # Prefix with pod name for clarity
+                        prefixed_line = f"[{pod_name}] {line}"
+
+                        # Publish to log manager
+                        self._log_manager.publish_content(self._path_key, prefixed_line)
+                        self.new_lines.emit(prefixed_line)
+
+                except ApiException as e:
+                    if self._running and pod_name in active_threads:
+                        retry_count += 1
+                        if e.status == 404:
+                            # Pod no longer exists
+                            logger.info(f"Pod {pod_name} no longer exists")
+                            break
+                        logger.warning(
+                            f"Pod {pod_name} log stream error (retry {retry_count}): {e.reason}"
+                        )
+                        if retry_count < max_pod_retries:
+                            time.sleep(2)
+                    else:
+                        break
+                except Exception as e:
+                    if self._running and pod_name in active_threads:
+                        retry_count += 1
+                        logger.error(
+                            f"Error streaming from pod {pod_name} (retry {retry_count}): {e}"
+                        )
+                        if retry_count < max_pod_retries:
+                            time.sleep(2)
+                    else:
                         break
 
-                    if self._paused:
-                        continue
+            logger.info(f"Log stream ended for pod: {pod_name}")
+            if pod_name in active_threads:
+                del active_threads[pod_name]
 
-                    # Add newline if not present
-                    if not line.endswith("\n"):
-                        line += "\n"
+        def watch_pods_with_retry() -> None:
+            """Watch for pod changes with retry logic."""
+            resource_version = None
+            retry_count = 0
 
-                    # Prefix with pod name for clarity
-                    prefixed_line = f"[{pod_name}] {line}"
+            while self._running:
+                try:
+                    w = watch.Watch()
+                    watch_kwargs = {
+                        "namespace": self._namespace,
+                        "label_selector": self._pod_name,
+                        "timeout_seconds": 300,  # 5 min timeout, will reconnect
+                    }
+                    if resource_version:
+                        watch_kwargs["resource_version"] = resource_version
 
-                    # Publish to log manager
-                    self._log_manager.publish_content(self._path_key, prefixed_line)
-                    self.new_lines.emit(prefixed_line)
+                    logger.info(
+                        f"Starting pod watch for {self._namespace}/{self._pod_name}"
+                    )
 
-            except ApiException as e:
-                if self._running:
-                    logger.warning(f"Pod {pod_name} log stream ended: {e.reason}")
-            except Exception as e:
-                if self._running:
-                    logger.error(f"Error streaming from pod {pod_name}: {e}")
-            finally:
-                logger.info(f"Log stream ended for pod: {pod_name}")
-                if pod_name in active_threads:
-                    del active_threads[pod_name]
+                    for event in w.stream(v1.list_namespaced_pod, **watch_kwargs):
+                        if not self._running:
+                            return
 
-        # Watch for pod changes
-        w = watch.Watch()
-        try:
-            for event in w.stream(
-                v1.list_namespaced_pod,
-                namespace=self._namespace,
-                label_selector=self._pod_name,
-                timeout_seconds=0,  # Watch indefinitely
-            ):
-                if not self._running:
-                    break
+                        # Reset retry count on successful event
+                        retry_count = 0
 
-                event_type = event["type"]
-                pod = event["object"]
-                pod_name = pod.metadata.name
-                pod_phase = pod.status.phase
+                        event_type = event["type"]
+                        pod = event["object"]
+                        pod_name = pod.metadata.name
+                        pod_phase = pod.status.phase
 
-                logger.debug(f"Pod event: {event_type} - {pod_name} ({pod_phase})")
+                        # Update resource version for reconnection
+                        resource_version = pod.metadata.resource_version
 
-                if event_type == "ADDED" or event_type == "MODIFIED":
-                    # Only stream from Running pods
-                    if pod_phase == "Running" and pod_name not in active_threads:
-                        logger.info(f"New running pod detected: {pod_name}")
-                        # Start streaming in a separate thread
-                        thread = threading.Thread(
-                            target=stream_pod_logs, args=(pod_name,), daemon=True
+                        logger.debug(
+                            f"Pod event: {event_type} - {pod_name} ({pod_phase})"
                         )
-                        active_threads[pod_name] = thread
-                        thread.start()
 
-                        # Notify about new pod
-                        notification = f"[SYSTEM] Now streaming from pod: {pod_name}\n"
-                        self._log_manager.publish_content(self._path_key, notification)
-                        self.new_lines.emit(notification)
+                        if event_type in ("ADDED", "MODIFIED"):
+                            # Only stream from Running pods
+                            if pod_phase == "Running" and pod_name not in active_threads:
+                                logger.info(f"New running pod detected: {pod_name}")
+                                # Start streaming in a separate thread
+                                thread = threading.Thread(
+                                    target=stream_pod_logs, args=(pod_name,), daemon=True
+                                )
+                                active_threads[pod_name] = thread
+                                thread.start()
 
-                elif event_type == "DELETED":
-                    if pod_name in active_threads:
-                        logger.info(f"Pod deleted: {pod_name}")
-                        # Thread will stop naturally when pod is gone
-                        notification = f"[SYSTEM] Pod terminated: {pod_name}\n"
-                        self._log_manager.publish_content(self._path_key, notification)
-                        self.new_lines.emit(notification)
+                                # Notify about new pod
+                                notification = (
+                                    f"[SYSTEM] Now streaming from pod: {pod_name}\n"
+                                )
+                                self._log_manager.publish_content(
+                                    self._path_key, notification
+                                )
+                                self.new_lines.emit(notification)
 
-        except ApiException as e:
-            error_msg = f"Error watching pods: {e.reason}"
-            logger.error(error_msg)
-            self.error_occurred.emit(error_msg)
-        except Exception as e:
-            error_msg = f"Unexpected error watching pods: {e}"
-            logger.error(error_msg, exc_info=True)
-            self.error_occurred.emit(error_msg)
+                        elif event_type == "DELETED":
+                            if pod_name in active_threads:
+                                logger.info(f"Pod deleted: {pod_name}")
+                                # Remove from active threads to signal stop
+                                del active_threads[pod_name]
+                                notification = f"[SYSTEM] Pod terminated: {pod_name}\n"
+                                self._log_manager.publish_content(
+                                    self._path_key, notification
+                                )
+                                self.new_lines.emit(notification)
+
+                    # Watch ended normally (timeout), will reconnect
+                    logger.debug("Pod watch timeout, reconnecting...")
+
+                except ApiException as e:
+                    if not self._running:
+                        return
+                    retry_count += 1
+                    if e.status == 410:
+                        # Resource version too old, reset and retry
+                        logger.warning("Watch resource version expired, resetting")
+                        resource_version = None
+                    else:
+                        logger.error(
+                            f"Error watching pods (retry {retry_count}): {e.reason}"
+                        )
+                    time.sleep(min(retry_delay * retry_count, 30))
+
+                except Exception as e:
+                    if not self._running:
+                        return
+                    retry_count += 1
+                    logger.error(
+                        f"Unexpected error watching pods (retry {retry_count}): {e}",
+                        exc_info=True,
+                    )
+                    time.sleep(min(retry_delay * retry_count, 30))
+
+        # Run the watch with retry in main thread
+        try:
+            watch_pods_with_retry()
         finally:
             # Clean up all streaming threads
             logger.info("Stopping all pod log streams")

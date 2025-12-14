@@ -200,6 +200,24 @@ class FileWatcherThread(QThread):
             return
 
         try:
+            # Check for file truncation (log rotation)
+            current_pos = self._file_handle.tell()
+            try:
+                file_size = self.file_path.stat().st_size
+                if file_size < current_pos:
+                    # File was truncated - reset to beginning
+                    logger.info(
+                        f"File truncated detected: {self.file_path} "
+                        f"(pos={current_pos}, size={file_size})"
+                    )
+                    self._log_manager.publish_stream_interrupted(
+                        self._path_key, "File truncated/rotated"
+                    )
+                    self._file_handle.seek(0)
+                    self._log_manager.publish_stream_resumed(self._path_key)
+            except (FileNotFoundError, PermissionError, OSError) as e:
+                logger.warning(f"Cannot stat file during modification check: {e}")
+
             lines = self._file_handle.readlines()
             if lines:
                 content = "".join(lines)

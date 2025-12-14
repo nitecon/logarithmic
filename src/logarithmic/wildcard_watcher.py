@@ -402,10 +402,28 @@ class WildcardFileWatcher(QThread):
 
     def _read_new_content(self) -> None:
         """Read new content from current file."""
-        if not self._file_handle:
+        if not self._file_handle or not self._current_file:
             return
 
         try:
+            # Check for file truncation (log rotation)
+            current_pos = self._file_handle.tell()
+            try:
+                file_size = self._current_file.stat().st_size
+                if file_size < current_pos:
+                    # File was truncated - reset to beginning
+                    logger.info(
+                        f"File truncated detected: {self._current_file} "
+                        f"(pos={current_pos}, size={file_size})"
+                    )
+                    self._log_manager.publish_stream_interrupted(
+                        self._path_key, "File truncated/rotated"
+                    )
+                    self._file_handle.seek(0)
+                    self._log_manager.publish_stream_resumed(self._path_key)
+            except (FileNotFoundError, PermissionError, OSError) as e:
+                logger.warning(f"Cannot stat file during read: {e}")
+
             lines = self._file_handle.readlines()
             if lines:
                 content = "".join(lines)

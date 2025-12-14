@@ -340,8 +340,15 @@ class LogGroupWindow(QWidget):
 
         self._line_counts[path] = 0
 
+        # Clear the buffer for this path
+        if path in self._log_buffers:
+            self._log_buffers[path] = ""
+
         if self._mode == "tabbed" and path in self._tab_widgets:
-            self._tab_widgets[path].clear()
+            # Clear the controller's display, not the dict itself!
+            controller = self._tab_widgets[path].get("controller")
+            if controller:
+                controller.clear()
 
         self._update_status()
 

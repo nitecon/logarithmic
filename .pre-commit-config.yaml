@@ -8,19 +8,29 @@ repos:
       - id: check-toml
       - id: check-added-large-files
 
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.8.4
+  # Local hooks that use the project's .venv
+  - repo: local
     hooks:
-      # Run linter first with auto-fix
-      - id: ruff
-        args: [--fix]
-      # Run formatter after linting
-      - id: ruff-format
+      - id: ruff-check
+        name: ruff check
+        entry: bash -c 'source .venv/bin/activate 2>/dev/null || source .venv/Scripts/activate 2>/dev/null; ruff check src/'
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^src/
 
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.7.0
-    hooks:
+      - id: ruff-format
+        name: ruff format
+        entry: bash -c 'source .venv/bin/activate 2>/dev/null || source .venv/Scripts/activate 2>/dev/null; ruff format --check src/'
+        language: system
+        pass_filenames: false
+        types: [python]
+        files: ^src/
+
       - id: mypy
-        additional_dependencies: ["pydantic>=2.0", "pydantic-settings>=2.0"]
-        args: [--config-file, pyproject.toml]
+        name: mypy
+        entry: bash -c 'source .venv/bin/activate 2>/dev/null || source .venv/Scripts/activate 2>/dev/null; mypy src/'
+        language: system
+        pass_filenames: false
+        types: [python]
         files: ^src/

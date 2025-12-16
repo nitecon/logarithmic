@@ -157,6 +157,29 @@ project-name/ ├── .github/ # CI/CD workflows (GitHub Actions) ├── .g
 
 The Continuous Integration (CI) pipeline (e.g., GitHub Actions) is the guardian of our code quality. Every pull request **must** pass all of the following checks before it can be merged.
 
+### Local Validation
+
+**Always use `run.bat` (Windows) or `run.sh` (Linux/macOS) to validate code changes locally.** This script automatically:
+1. Auto-fixes code formatting with `ruff format`
+2. Auto-fixes lint issues with `ruff check --fix`
+3. Runs all tests with `pytest`
+4. Runs type checking with `mypy`
+
+```bash
+# Windows (use cmd /c to avoid IDE console issues)
+cmd /c run.bat
+
+# Linux/macOS
+./run.sh
+
+# Skip checks and run app directly
+cmd /c run.bat --no-check
+```
+
+**Do not run individual linting/testing commands directly.** The `run.bat`/`run.sh` scripts ensure consistent validation across all environments.
+
+### CI Pipeline Checks
+
 1.  **Lint / Format**:
     * `ruff check .` (linting)
     * `ruff format --check .` (replaces `black`)

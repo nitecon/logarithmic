@@ -2,6 +2,7 @@
 
 import logging
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import Callable
@@ -16,6 +17,42 @@ from watchdog.observers.api import BaseObserver
 
 from logarithmic.exceptions import FileAccessError
 from logarithmic.exceptions import InvalidPathError
+
+
+@dataclass
+class FileState:
+    """Tracks file metadata for change detection.
+
+    Attributes:
+        mtime: Last modification time (seconds since epoch)
+        size: File size in bytes
+        inode: File inode number (for detecting file replacement)
+    """
+
+    mtime: float
+    size: int
+    inode: int
+
+    @classmethod
+    def from_path(cls, path: Path) -> "FileState | None":
+        """Create FileState from a file path.
+
+        Args:
+            path: Path to the file
+
+        Returns:
+            FileState if file exists and is accessible, None otherwise
+        """
+        try:
+            stat = path.stat()
+            return cls(
+                mtime=stat.st_mtime,
+                size=stat.st_size,
+                inode=stat.st_ino,
+            )
+        except (FileNotFoundError, PermissionError, OSError):
+            return None
+
 
 if TYPE_CHECKING:
     from logarithmic.log_manager import LogManager
@@ -71,6 +108,9 @@ class FileWatcherThread(QThread):
         self._observer: BaseObserver | None = None
         self._tail_only = tail_only
         self._tail_lines = tail_lines
+        self._last_file_state: FileState | None = None
+        self._poll_counter = 0
+        self._poll_interval = 10  # Check file state every 10 iterations (1 second)
 
     def run(self) -> None:
         """Main thread execution loop."""
@@ -87,9 +127,15 @@ class FileWatcherThread(QThread):
                 )
                 self._watch_for_creation()
 
-            # Keep thread alive
+            # Keep thread alive and periodically validate file state
             while self._running:
                 self.msleep(100)
+                self._poll_counter += 1
+
+                # Periodic file state validation (every ~1 second)
+                if self._poll_counter >= self._poll_interval:
+                    self._poll_counter = 0
+                    self._validate_file_state()
 
         except Exception as e:
             logger.error(f"Error in watcher thread: {e}", exc_info=True)
@@ -194,6 +240,163 @@ class FileWatcherThread(QThread):
         except Exception as e:
             raise FileAccessError(f"Failed to open file for tailing: {e}") from e
 
+        # Capture initial file state for change detection
+        self._last_file_state = FileState.from_path(self.file_path)
+        if self._last_file_state:
+            logger.debug(
+                f"Captured file state: mtime={self._last_file_state.mtime}, "
+                f"size={self._last_file_state.size}, inode={self._last_file_state.inode}"
+            )
+
+    def _validate_file_state(self) -> None:
+        """Validate file state and handle changes not caught by watchdog.
+
+        This method provides a fallback mechanism for detecting file changes
+        that watchdog may miss (especially on Windows). It checks:
+        - File deletion (file no longer exists)
+        - File replacement (inode changed - file was moved/deleted and recreated)
+        - File truncation (size decreased)
+        - File modification (mtime changed but no watchdog event received)
+        """
+        if not self._file_handle:
+            return
+
+        current_state = FileState.from_path(self.file_path)
+
+        # File was deleted
+        if current_state is None:
+            logger.info(f"File state validation: file deleted - {self.file_path}")
+            self._on_file_deleted()
+            return
+
+        # No previous state to compare (shouldn't happen, but handle gracefully)
+        if self._last_file_state is None:
+            self._last_file_state = current_state
+            return
+
+        # Check for file replacement (inode changed)
+        if current_state.inode != self._last_file_state.inode:
+            logger.info(
+                f"File state validation: inode changed - {self.file_path} "
+                f"(old={self._last_file_state.inode}, new={current_state.inode})"
+            )
+            self._reload_file("File replaced")
+            return
+
+        # Check for truncation (size decreased)
+        if current_state.size < self._last_file_state.size:
+            logger.info(
+                f"File state validation: truncation detected - {self.file_path} "
+                f"(old_size={self._last_file_state.size}, new_size={current_state.size})"
+            )
+            self._handle_truncation()
+            self._last_file_state = current_state
+            return
+
+        # Check for modification (mtime changed and we might have missed content)
+        if current_state.mtime > self._last_file_state.mtime:
+            # File was modified - read any new content
+            if current_state.size > self._last_file_state.size:
+                logger.debug(
+                    f"File state validation: new content detected - {self.file_path}"
+                )
+                self._on_file_modified()
+            self._last_file_state = current_state
+
+    def _handle_truncation(self) -> None:
+        """Handle file truncation by resetting to beginning."""
+        if not self._file_handle:
+            return
+
+        self._log_manager.publish_stream_interrupted(
+            self._path_key, "File truncated/rotated"
+        )
+        self._file_handle.seek(0)
+        self._log_manager.publish_stream_resumed(self._path_key)
+
+        # Emit visual separator for file reload
+        separator = "\n============= File Reloaded =============\n"
+        self._log_manager.publish_content(self._path_key, separator)
+        if not self._paused:
+            self.new_lines.emit(separator)
+
+        # Read content from beginning
+        try:
+            content = self._file_handle.read()
+            if content:
+                self._log_manager.publish_content(self._path_key, content)
+                if not self._paused:
+                    self.new_lines.emit(content)
+                else:
+                    self._buffer.append(content)
+        except Exception as e:
+            logger.error(f"Error reading after truncation: {e}")
+
+    def _reload_file(self, reason: str) -> None:
+        """Reload the file from scratch (for replacement scenarios).
+
+        Args:
+            reason: Reason for reloading (for logging/events)
+        """
+        logger.info(f"Reloading file: {self.file_path} - {reason}")
+
+        # Publish interruption
+        self._log_manager.publish_stream_interrupted(self._path_key, reason)
+
+        # Close current handle
+        if self._file_handle:
+            try:
+                self._file_handle.close()
+            except Exception as e:
+                logger.debug(f"Error closing file handle during reload: {e}")
+            self._file_handle = None
+
+        # Clear the log display for fresh content
+        self._log_manager.clear_buffer(self._path_key)
+
+        # Re-read the file from beginning
+        try:
+            with open(self.file_path, "r", encoding="utf-8", errors="replace") as f:
+                if self._tail_only:
+                    lines = f.readlines()
+                    if len(lines) > self._tail_lines:
+                        lines = lines[-self._tail_lines :]
+                    content = "".join(lines)
+                else:
+                    content = f.read()
+
+                if content:
+                    self._log_manager.publish_content(self._path_key, content)
+                    if not self._paused:
+                        self.new_lines.emit(content)
+                    else:
+                        self._buffer.append(content)
+        except Exception as e:
+            logger.error(f"Error reading file during reload: {e}")
+            self.error_occurred.emit(f"Error reloading file: {e}")
+            return
+
+        # Reopen for tailing
+        try:
+            self._file_handle = open(
+                self.file_path, "r", encoding="utf-8", errors="replace"
+            )
+            self._file_handle.seek(0, 2)  # Seek to end
+        except Exception as e:
+            logger.error(f"Error reopening file for tailing: {e}")
+            self.error_occurred.emit(f"Error reopening file: {e}")
+            return
+
+        # Emit visual separator for file reload
+        separator = "\n============= File Reloaded =============\n"
+        self._log_manager.publish_content(self._path_key, separator)
+        if not self._paused:
+            self.new_lines.emit(separator)
+
+        # Update file state
+        self._last_file_state = FileState.from_path(self.file_path)
+        self._log_manager.publish_stream_resumed(self._path_key)
+
     def _on_file_modified(self) -> None:
         """Callback when file is modified."""
         if not self._file_handle or not self._running:
@@ -235,6 +438,7 @@ class FileWatcherThread(QThread):
         self._log_manager.publish_file_deleted(self._path_key)
         self._log_manager.publish_stream_interrupted(self._path_key, "File deleted")
         self.file_deleted.emit()
+        self._last_file_state = None  # Reset file state
         self._cleanup()
         # Return to state 1
         if self._running:

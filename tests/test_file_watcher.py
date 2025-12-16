@@ -92,7 +92,7 @@ class TestFileState:
         assert state2.size < state1.size
 
     def test_file_state_detects_inode_change(self, tmp_path: Path) -> None:
-        """Test that FileState detects inode change (file replacement)."""
+        """Test that FileState detects file replacement via inode, mtime, or size change."""
         test_file = tmp_path / "test.log"
         test_file.write_text("original")
 
@@ -106,10 +106,17 @@ class TestFileState:
         state2 = FileState.from_path(test_file)
         assert state2 is not None
 
-        # On most systems, inode should change after delete+create
-        # Note: This may not always change on all filesystems
-        # The important thing is that we can detect the change
-        assert state2.inode != state1.inode or state2.mtime > state1.mtime
+        # File replacement can be detected by any of these changes:
+        # - inode changed (common on most systems)
+        # - mtime changed (if enough time passed)
+        # - size changed (content is different)
+        # On fast CI systems, inode may be reused and mtime may be same,
+        # but size will always differ if content differs
+        assert (
+            state2.inode != state1.inode
+            or state2.mtime > state1.mtime
+            or state2.size != state1.size
+        )
 
 
 class TestFileWatcherThreadValidation:

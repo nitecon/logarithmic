@@ -400,10 +400,23 @@ class MainWindow(QMainWindow):
         logs_tab = QWidget()
         logs_layout = QVBoxLayout(logs_tab)
 
+        logs_header_layout = QHBoxLayout()
         self.logs_label = QLabel("Tracked Logs:")
         self.logs_label.setFont(self._fonts.get_ui_font(11, bold=True))
-        logs_layout.addWidget(self.logs_label)
+        logs_header_layout.addWidget(self.logs_label)
         self._ui_elements.append(self.logs_label)
+
+        self.restart_streams_button = QPushButton("🔄 Restart Streams")
+        self.restart_streams_button.setFont(self._fonts.get_ui_font(9))
+        self.restart_streams_button.setToolTip(
+            "Reload all log files from the beginning (useful if file changes weren't detected)"
+        )
+        self.restart_streams_button.clicked.connect(self._on_restart_streams)
+        logs_header_layout.addWidget(self.restart_streams_button)
+        self._ui_elements.append(self.restart_streams_button)
+        logs_header_layout.addStretch()
+
+        logs_layout.addLayout(logs_header_layout)
 
         self.log_list = QListWidget()
         self.log_list.itemDoubleClicked.connect(self._on_log_double_clicked)
@@ -1925,6 +1938,59 @@ class MainWindow(QMainWindow):
             count += 1
 
         logger.info(f"Resized {count} windows to {default_width}x{default_height}")
+
+    def _on_restart_streams(self) -> None:
+        """Handle restart streams button - reload all log files from the beginning.
+
+        This is a fallback for when Windows fails to detect file changes properly.
+        It prints a separator to all streams and reloads the file content from start.
+        """
+        if not self._providers and not self._watchers:
+            logger.info("No active streams to restart")
+            return
+
+        logger.info("Restarting all streams...")
+
+        # Get all active path keys
+        all_path_keys = list(self._providers.keys()) + list(self._watchers.keys())
+
+        for path_key in all_path_keys:
+            # Emit restart separator to the stream
+            separator = "\n============ Restart Stream ============\n"
+            self._log_manager.publish_content(path_key, separator)
+
+            # Clear buffer and reload file from beginning
+            self._log_manager.clear_buffer(path_key)
+
+            # Restart the provider or watcher
+            if path_key in self._providers:
+                provider = self._providers[path_key]
+                provider.stop()
+
+                # Recreate provider from config
+                config = self._provider_configs.get(path_key)
+                if config:
+                    new_provider = self._provider_registry.create_provider(
+                        config, self._log_manager, path_key
+                    )
+                    new_provider.error_occurred.connect(
+                        lambda err, pk=path_key: self._on_watcher_error(pk, err)
+                    )
+                    new_provider.start()
+                    self._providers[path_key] = new_provider
+            elif path_key in self._watchers:
+                watcher = self._watchers[path_key]
+                watcher.stop()
+                watcher.wait()
+
+                # Start new watcher
+                is_wildcard = "*" in path_key or "?" in path_key
+                if is_wildcard:
+                    self._start_wildcard_watcher(path_key, path_key)
+                else:
+                    self._start_watcher(path_key, Path(path_key))
+
+        logger.info(f"Restarted {len(all_path_keys)} stream(s)")
 
     def _on_reset_windows(self) -> None:
         """Handle reset windows button click - cascade all viewer and group windows."""

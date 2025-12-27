@@ -448,8 +448,8 @@ class FileWatcherThread(QThread):
             if self._file_handle:
                 try:
                     self._file_handle.seek(0, 2)  # Seek to end
-                except Exception:
-                    pass
+                except OSError:
+                    logger.debug("Failed to seek after transient error")
         except Exception as e:
             self.error_occurred.emit(f"Error reading file: {e}")
 

@@ -4,6 +4,21 @@
 [![PySide6](https://img.shields.io/badge/PySide6-6.10.0-green)](https://pypi.org/project/PySide6/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
+[![Mac App Store](https://img.shields.io/badge/Mac%20App%20Store-$9.99-blue)](https://apps.apple.com/us/app/logarithmic-log-view-apptrace/id6755344508)
+
+## 🍎 Get it on the Mac App Store
+
+<a href="https://apps.apple.com/us/app/logarithmic-log-view-apptrace/id6755344508">
+  <img src="images/appstore.svg" alt="Download on the Mac App Store" height="50">
+</a>
+
+<hr/>
+
+Logarithmic is **fully open source** (Apache 2.0 license) and always will be. The Mac App Store version is available for $9.99 to provide a signed, notarized build that runs without security warnings on macOS. This also helps support ongoing development and covers the cost of the Apple Developer Program.
+
+You can always build from source for free using the instructions below!
+
+---
 
 **The ultimate cross-platform log tailing application with intelligent grouping, syntax highlighting, and session management.**
 

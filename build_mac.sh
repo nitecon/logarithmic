@@ -1,6 +1,7 @@
 #!/bin/bash
 set -e
-# Personal build script - not committed to repo
+
+source .venv/bin/activate
 
 # --- 0. Get Version from Git Tag ---
 export APP_VERSION=$(git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "1.0.0")

@@ -404,7 +404,18 @@ class FileWatcherThread(QThread):
 
         try:
             # Check for file truncation (log rotation)
-            current_pos = self._file_handle.tell()
+            try:
+                current_pos = self._file_handle.tell()
+            except OSError as e:
+                # Handle "telling position disabled by next() call" error
+                # This occurs when tell() is called after iteration methods
+                logger.debug(f"File position reset by OS: {e}")
+                self._log_manager.publish_content(
+                    self._path_key, "\n[File reset by OS]\n"
+                )
+                self._file_handle.seek(0, 2)  # Seek to end
+                return
+
             try:
                 file_size = self.file_path.stat().st_size
                 if file_size < current_pos:
@@ -430,6 +441,15 @@ class FileWatcherThread(QThread):
                     self._buffer.extend(lines)
                 else:
                     self.new_lines.emit(content)
+        except OSError as e:
+            # Handle transient file errors silently (e.g., file reset by OS)
+            logger.debug(f"Transient file error, resetting: {e}")
+            self._log_manager.publish_content(self._path_key, "\n[File reset by OS]\n")
+            if self._file_handle:
+                try:
+                    self._file_handle.seek(0, 2)  # Seek to end
+                except Exception:
+                    pass
         except Exception as e:
             self.error_occurred.emit(f"Error reading file: {e}")
 

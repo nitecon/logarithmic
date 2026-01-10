@@ -41,9 +41,12 @@ class LogarithmicMcpServer:
         self._port = port
         self._server = Server("logarithmic-logs")
         self._running = False
+        self._started = False  # True when server is actually listening
+        self._startup_error: str | None = None
         self._thread: threading.Thread | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._uvicorn_server: Any | None = None
+        self._startup_event = threading.Event()
 
         self._setup_handlers()
 
@@ -369,16 +372,45 @@ class LogarithmicMcpServer:
             else:
                 return [TextContent(type="text", text=f"Error: Unknown tool '{name}'")]
 
-    def start(self) -> None:
-        """Start the MCP server in a background thread."""
+    def start(self, timeout: float = 5.0) -> bool:
+        """Start the MCP server in a background thread.
+
+        Args:
+            timeout: Seconds to wait for server to start
+
+        Returns:
+            True if server started successfully, False otherwise
+        """
         if self._running:
             logger.warning("MCP server is already running")
-            return
+            return True
 
         self._running = True
+        self._started = False
+        self._startup_error = None
+        self._startup_event.clear()
+
         self._thread = threading.Thread(target=self._run_server, daemon=True)
         self._thread.start()
-        logger.info(f"MCP server started on {self._host}:{self._port}")
+
+        # Wait for server to signal it's ready or failed
+        if self._startup_event.wait(timeout=timeout):
+            if self._started:
+                logger.info(f"MCP server started on {self._host}:{self._port}")
+                return True
+            else:
+                logger.error(f"MCP server failed to start: {self._startup_error}")
+                self._running = False
+                return False
+        else:
+            logger.error("MCP server startup timed out")
+            self._startup_error = "Startup timed out"
+            self._running = False
+            return False
+
+    def get_startup_error(self) -> str | None:
+        """Get the startup error message if server failed to start."""
+        return self._startup_error
 
     def stop(self) -> None:
         """Stop the MCP server."""
@@ -417,14 +449,19 @@ class LogarithmicMcpServer:
             self._loop.run_until_complete(self._serve())
         except Exception as e:
             logger.error(f"MCP server error: {e}", exc_info=True)
+            self._startup_error = str(e)
+            self._started = False
+            self._startup_event.set()  # Signal failure
         finally:
             if self._loop:
                 self._loop.close()
             self._loop = None
+            self._started = False
 
     async def _serve(self) -> None:
         """Serve the MCP server using SSE transport."""
         import uvicorn
+        from starlette.responses import JSONResponse
         from starlette.responses import Response
 
         # Create SSE transport
@@ -442,19 +479,77 @@ class LogarithmicMcpServer:
             # Return empty response to avoid NoneType error
             return Response()
 
+        # Health check endpoint for browser testing
+        async def health_check(request):
+            """Health check endpoint."""
+            return JSONResponse(
+                {
+                    "status": "ok",
+                    "service": "logarithmic-mcp-server",
+                    "host": self._host,
+                    "port": self._port,
+                    "endpoints": {
+                        "sse": "/sse",
+                        "messages": "/messages",
+                        "health": "/health",
+                    },
+                }
+            )
+
+        # Root endpoint with info
+        async def root(request):
+            """Root endpoint with server info."""
+            return JSONResponse(
+                {
+                    "name": "Logarithmic MCP Server",
+                    "description": "Model Context Protocol server for log analysis",
+                    "status": "running",
+                    "endpoints": {
+                        "sse": f"http://{self._host}:{self._port}/sse",
+                        "health": f"http://{self._host}:{self._port}/health",
+                    },
+                    "usage": "Connect your MCP client (e.g., Claude Desktop) to the /sse endpoint",
+                }
+            )
+
         # Create Starlette app with SSE endpoint
         # Use Mount for the POST endpoint since handle_post_message is an ASGI app
         app = Starlette(
             debug=True,
             routes=[
+                Route("/", endpoint=root, methods=["GET"]),
+                Route("/health", endpoint=health_check, methods=["GET"]),
                 Route("/sse", endpoint=handle_sse, methods=["GET"]),
                 Mount("/messages", app=sse.handle_post_message),
             ],
         )
 
+        # Check if port is available before starting
+        import socket
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind((self._host, self._port))
+            sock.close()
+        except OSError as e:
+            self._startup_error = f"Cannot bind to {self._host}:{self._port} - {e}"
+            self._started = False
+            self._startup_event.set()
+            return
+
         # Configure uvicorn
-        config = uvicorn.Config(app, host=self._host, port=self._port, log_level="info")
+        config = uvicorn.Config(
+            app,
+            host=self._host,
+            port=self._port,
+            log_level="info",
+        )
         self._uvicorn_server = uvicorn.Server(config)
+
+        # Signal that we're about to start (port check passed)
+        self._started = True
+        self._startup_event.set()
 
         logger.info(f"MCP server running on http://{self._host}:{self._port}")
         await self._uvicorn_server.serve()

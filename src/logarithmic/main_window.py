@@ -9,6 +9,7 @@ from PySide6.QtGui import QCursor
 from PySide6.QtGui import QDragEnterEvent
 from PySide6.QtGui import QDropEvent
 from PySide6.QtGui import QKeyEvent
+from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import QCheckBox
 from PySide6.QtWidgets import QComboBox
 from PySide6.QtWidgets import QDialog
@@ -641,14 +642,36 @@ class MainWindow(QMainWindow):
         mcp_layout.addWidget(mcp_desc)
         self._ui_elements.append(mcp_desc)
 
-        # Enable MCP checkbox
-        self.mcp_enabled_checkbox = QCheckBox("Enable MCP Server")
-        self.mcp_enabled_checkbox.setFont(self._fonts.get_ui_font(10))
+        # Status indicator and Start/Stop button row
+        status_row = QHBoxLayout()
+
+        # Status indicator light (circle)
+        self.mcp_status_light = QLabel("●")
+        self.mcp_status_light.setFont(self._fonts.get_ui_font(16))
+        self.mcp_status_light.setStyleSheet(
+            "color: #444444;"
+        )  # Dark gray = not started
+        self.mcp_status_light.setToolTip("Server not started")
+        status_row.addWidget(self.mcp_status_light)
+
+        # Start/Stop button
+        self.mcp_start_button = QPushButton("Start Server")
+        self.mcp_start_button.setFont(self._fonts.get_ui_font(10))
+        self.mcp_start_button.clicked.connect(self._on_mcp_start_stop_clicked)
+        status_row.addWidget(self.mcp_start_button)
+        self._ui_elements.append(self.mcp_start_button)
+
+        status_row.addStretch()
+        mcp_layout.addLayout(status_row)
+
+        # Start on launch checkbox
         mcp_settings = self._settings.get_mcp_server_settings()
-        self.mcp_enabled_checkbox.setChecked(mcp_settings.get("enabled", False))
-        self.mcp_enabled_checkbox.stateChanged.connect(self._on_mcp_enabled_changed)
-        mcp_layout.addWidget(self.mcp_enabled_checkbox)
-        self._ui_elements.append(self.mcp_enabled_checkbox)
+        self.mcp_autostart_checkbox = QCheckBox("Start on launch")
+        self.mcp_autostart_checkbox.setFont(self._fonts.get_ui_font(10))
+        self.mcp_autostart_checkbox.setChecked(mcp_settings.get("enabled", False))
+        self.mcp_autostart_checkbox.stateChanged.connect(self._on_mcp_autostart_changed)
+        mcp_layout.addWidget(self.mcp_autostart_checkbox)
+        self._ui_elements.append(self.mcp_autostart_checkbox)
 
         # Binding address
         binding_layout = QHBoxLayout()
@@ -685,12 +708,12 @@ class MainWindow(QMainWindow):
         port_layout.addStretch()
         mcp_layout.addLayout(port_layout)
 
-        # Restart note
+        # Note about address/port changes
         restart_note = QLabel(
-            "Note: Changes require application restart to take effect"
+            "Note: Stop and restart server after changing address/port"
         )
         restart_note.setFont(self._fonts.get_ui_font(8))
-        restart_note.setStyleSheet("color: orange; font-style: italic;")
+        restart_note.setStyleSheet("color: gray; font-style: italic;")
         mcp_layout.addWidget(restart_note)
         self._ui_elements.append(restart_note)
 
@@ -1807,8 +1830,11 @@ class MainWindow(QMainWindow):
         mcp_settings = self._settings.get_mcp_server_settings()
 
         if not mcp_settings.get("enabled", False):
-            logger.info("MCP server is disabled in settings")
+            logger.info("MCP server autostart is disabled in settings")
             return
+
+        # Update UI to show starting
+        self._update_mcp_status_light("starting")
 
         try:
             # Create MCP bridge
@@ -1828,11 +1854,27 @@ class MainWindow(QMainWindow):
                 self._mcp_bridge, host=binding_address, port=port
             )
 
-            self._mcp_server.start()
-            logger.info(f"MCP server started on {binding_address}:{port}")
+            if self._mcp_server.start():
+                logger.info(f"MCP server started on {binding_address}:{port}")
+                self._update_mcp_status_light("running")
+                self._update_mcp_button_state()
+            else:
+                error_msg = self._mcp_server.get_startup_error() or "Unknown error"
+                logger.error(f"Failed to start MCP server: {error_msg}")
+                self._update_mcp_status_light("error")
+                self._update_mcp_button_state()
+                QMessageBox.warning(
+                    self,
+                    "MCP Server Error",
+                    f"Failed to start MCP server:\n\n{error_msg}\n\n"
+                    f"The application will continue without MCP support.",
+                )
+                self._mcp_server = None
 
         except Exception as e:
             logger.error(f"Failed to start MCP server: {e}", exc_info=True)
+            self._update_mcp_status_light("error")
+            self._update_mcp_button_state()
             QMessageBox.warning(
                 self,
                 "MCP Server Error",
@@ -2633,22 +2675,45 @@ class MainWindow(QMainWindow):
 
     # MCP Server Settings Handlers
 
-    def _on_mcp_enabled_changed(self, state: int) -> None:
-        """Handle MCP server enabled checkbox change.
+    def _on_mcp_start_stop_clicked(self) -> None:
+        """Handle MCP server start/stop button click."""
+        if self._mcp_server and self._mcp_server.is_running():
+            self._stop_mcp_server()
+        else:
+            self._start_mcp_server()
+
+    def _on_mcp_autostart_changed(self, state: int) -> None:
+        """Handle MCP server autostart checkbox change.
 
         Args:
             state: Checkbox state (Qt.CheckState)
         """
         enabled = state == Qt.CheckState.Checked.value
         self._settings.set_mcp_server_enabled(enabled)
-        logger.info(f"MCP server enabled changed to {enabled}")
+        logger.info(f"MCP server autostart changed to {enabled}")
 
-        if enabled:
-            # Start the MCP server
-            self._start_mcp_server()
+    def _update_mcp_status_light(self, status: str) -> None:
+        """Update the MCP status indicator light.
+
+        Args:
+            status: One of 'off', 'starting', 'running', 'error'
+        """
+        colors = {
+            "off": ("#444444", "Server not started"),
+            "starting": ("#FFA500", "Server starting..."),
+            "running": ("#00FF00", "Server running"),
+            "error": ("#FF0000", "Server error"),
+        }
+        color, tooltip = colors.get(status, colors["off"])
+        self.mcp_status_light.setStyleSheet(f"color: {color};")
+        self.mcp_status_light.setToolTip(tooltip)
+
+    def _update_mcp_button_state(self) -> None:
+        """Update the MCP start/stop button text based on server state."""
+        if self._mcp_server and self._mcp_server.is_running():
+            self.mcp_start_button.setText("Stop Server")
         else:
-            # Stop the MCP server
-            self._stop_mcp_server()
+            self.mcp_start_button.setText("Start Server")
 
     def _on_mcp_binding_changed(self, text: str) -> None:
         """Handle MCP server binding address change.
@@ -2673,7 +2738,15 @@ class MainWindow(QMainWindow):
         """Start the MCP server."""
         if self._mcp_server and self._mcp_server.is_running():
             logger.info("MCP server is already running")
+            self._update_mcp_status_light("running")
+            self._update_mcp_button_state()
             return
+
+        # Update UI to show starting
+        self._update_mcp_status_light("starting")
+        self.mcp_start_button.setEnabled(False)
+        self.mcp_start_button.setText("Starting...")
+        QApplication.processEvents()
 
         try:
             # Create MCP bridge if not exists
@@ -2693,35 +2766,54 @@ class MainWindow(QMainWindow):
             self._mcp_server = LogarithmicMcpServer(
                 self._mcp_bridge, host=binding_address, port=port
             )
-            self._mcp_server.start()
 
-            logger.info(f"MCP server started on {binding_address}:{port}")
-            QMessageBox.information(
-                self,
-                "MCP Server Started",
-                f"MCP server is now running on {binding_address}:{port}\n\n"
-                f"You can connect AI agents to this endpoint.",
-            )
+            if self._mcp_server.start():
+                logger.info(f"MCP server started on {binding_address}:{port}")
+                self._update_mcp_status_light("running")
+                QMessageBox.information(
+                    self,
+                    "MCP Server Started",
+                    f"MCP server is now running on http://{binding_address}:{port}\n\n"
+                    f"You can test it by visiting http://{binding_address}:{port}/ in your browser.\n\n"
+                    f"Connect AI agents (e.g., Claude Desktop) to http://{binding_address}:{port}/sse",
+                )
+            else:
+                error_msg = self._mcp_server.get_startup_error() or "Unknown error"
+                logger.error(f"Failed to start MCP server: {error_msg}")
+                self._update_mcp_status_light("error")
+                QMessageBox.warning(
+                    self,
+                    "MCP Server Error",
+                    f"Failed to start MCP server:\n\n{error_msg}\n\n"
+                    f"Please check if port {port} is already in use or requires elevated permissions.",
+                )
+                self._mcp_server = None
 
         except Exception as e:
             logger.error(f"Failed to start MCP server: {e}", exc_info=True)
+            self._update_mcp_status_light("error")
             QMessageBox.warning(
                 self,
                 "MCP Server Error",
                 f"Failed to start MCP server: {e}\n\nCheck the logs for more details.",
             )
-            # Uncheck the checkbox since server failed to start
-            self.mcp_enabled_checkbox.setChecked(False)
+        finally:
+            self.mcp_start_button.setEnabled(True)
+            self._update_mcp_button_state()
 
     def _stop_mcp_server(self) -> None:
         """Stop the MCP server."""
         if not self._mcp_server or not self._mcp_server.is_running():
             logger.info("MCP server is not running")
+            self._update_mcp_status_light("off")
+            self._update_mcp_button_state()
             return
 
         try:
             self._mcp_server.stop()
+            self._mcp_server = None
             logger.info("MCP server stopped")
+            self._update_mcp_status_light("off")
             QMessageBox.information(
                 self,
                 "MCP Server Stopped",
@@ -2729,11 +2821,14 @@ class MainWindow(QMainWindow):
             )
         except Exception as e:
             logger.error(f"Failed to stop MCP server: {e}", exc_info=True)
+            self._update_mcp_status_light("error")
             QMessageBox.warning(
                 self,
                 "MCP Server Error",
                 f"Failed to stop MCP server: {e}",
             )
+        finally:
+            self._update_mcp_button_state()
 
     def _check_for_updates(self) -> None:
         """Check for application updates on startup."""

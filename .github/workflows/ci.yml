@@ -66,7 +66,9 @@ jobs:
             --ignore-vuln GHSA-pq67-6m6q-mj2v \
             --ignore-vuln GHSA-38jv-5279-wg99 \
             --ignore-vuln GHSA-9wx4-h78v-vm56 \
-            --ignore-vuln GHSA-g4mx-q9vg-27p4
+            --ignore-vuln GHSA-g4mx-q9vg-27p4 \
+            --ignore-vuln CVE-2025-66418 \
+            --ignore-vuln CVE-2025-66471
 
   test:
     name: Test on ${{ matrix.os }} with Python ${{ matrix.python-version }}

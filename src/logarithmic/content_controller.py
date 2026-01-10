@@ -4,8 +4,10 @@ import logging
 from typing import Callable
 
 from PySide6.QtGui import QTextCursor
+from PySide6.QtWidgets import QCheckBox
 from PySide6.QtWidgets import QHBoxLayout
 from PySide6.QtWidgets import QLabel
+from PySide6.QtWidgets import QLineEdit
 from PySide6.QtWidgets import QPlainTextEdit
 from PySide6.QtWidgets import QPushButton
 from PySide6.QtWidgets import QVBoxLayout
@@ -26,6 +28,7 @@ class ContentController:
     - Clear content
     - Status bar
     - Auto-scrolling
+    - Line filtering
     """
 
     def __init__(
@@ -55,6 +58,10 @@ class ContentController:
         self._is_live = True
         self._is_paused = False
         self._line_count = 0
+        self._full_content: str = ""  # Store full content for filtering
+        self._filter_text: str = ""
+        self._filter_case_insensitive: bool = True
+        self._filtered_line_count: int = 0
 
         # Widgets
         self._container: QWidget | None = None
@@ -62,6 +69,9 @@ class ContentController:
         self._go_live_btn: QPushButton | None = None
         self._pause_btn: QPushButton | None = None
         self._clear_btn: QPushButton | None = None
+        self._filter_input: QLineEdit | None = None
+        self._filter_case_checkbox: QCheckBox | None = None
+        self._filter_clear_btn: QPushButton | None = None
         self._status_bar: QLabel | None = None
         self._highlighter: LogHighlighter | None = None
 
@@ -112,6 +122,40 @@ class ContentController:
         self._clear_btn.setFont(self._fonts.get_ui_font(10))
         self._clear_btn.clicked.connect(self._on_clear)
         controls_layout.addWidget(self._clear_btn)
+
+        # Separator
+        separator = QLabel(" | ")
+        separator.setFont(self._fonts.get_ui_font(10))
+        controls_layout.addWidget(separator)
+
+        # Filter label
+        filter_label = QLabel("Filter:")
+        filter_label.setFont(self._fonts.get_ui_font(10))
+        controls_layout.addWidget(filter_label)
+
+        # Filter input
+        self._filter_input = QLineEdit()
+        self._filter_input.setFont(self._fonts.get_ui_font(10))
+        self._filter_input.setPlaceholderText("Type to filter lines...")
+        self._filter_input.setMinimumWidth(150)
+        self._filter_input.setMaximumWidth(250)
+        self._filter_input.textChanged.connect(self._on_filter_changed)
+        controls_layout.addWidget(self._filter_input)
+
+        # Case insensitive checkbox
+        self._filter_case_checkbox = QCheckBox("Ignore Case")
+        self._filter_case_checkbox.setFont(self._fonts.get_ui_font(10))
+        self._filter_case_checkbox.setChecked(True)
+        self._filter_case_checkbox.toggled.connect(self._on_filter_case_changed)
+        controls_layout.addWidget(self._filter_case_checkbox)
+
+        # Clear filter button
+        self._filter_clear_btn = QPushButton("✕")
+        self._filter_clear_btn.setFont(self._fonts.get_ui_font(10))
+        self._filter_clear_btn.setToolTip("Clear filter")
+        self._filter_clear_btn.setMaximumWidth(30)
+        self._filter_clear_btn.clicked.connect(self._on_filter_clear)
+        controls_layout.addWidget(self._filter_clear_btn)
 
         controls_layout.addStretch()
         layout.addLayout(controls_layout)
@@ -169,10 +213,21 @@ class ContentController:
         new_lines = content.count("\n")
         self._line_count += new_lines
 
-        # Append content
-        cursor = self._text_edit.textCursor()
-        cursor.movePosition(QTextCursor.MoveOperation.End)
-        cursor.insertText(content)
+        # Store in full content buffer
+        self._full_content += content
+
+        # If filter is active, only append matching lines
+        if self._filter_text:
+            filtered_content = self._filter_content(content)
+            if filtered_content:
+                cursor = self._text_edit.textCursor()
+                cursor.movePosition(QTextCursor.MoveOperation.End)
+                cursor.insertText(filtered_content)
+        else:
+            # No filter, append directly
+            cursor = self._text_edit.textCursor()
+            cursor.movePosition(QTextCursor.MoveOperation.End)
+            cursor.insertText(content)
 
         # Auto-scroll if in live mode
         if self._is_live:
@@ -191,8 +246,16 @@ class ContentController:
         if not self._text_edit:
             return
 
-        self._text_edit.setPlainText(content)
+        # Store full content
+        self._full_content = content
         self._line_count = content.count("\n")
+
+        # Apply filter if active
+        if self._filter_text:
+            filtered = self._filter_content(content)
+            self._text_edit.setPlainText(filtered)
+        else:
+            self._text_edit.setPlainText(content)
 
         # Auto-scroll if in live mode
         if self._is_live:
@@ -206,18 +269,18 @@ class ContentController:
             return
 
         self._text_edit.clear()
+        self._full_content = ""
         self._line_count = 0
+        self._filtered_line_count = 0
         self._update_status()
 
     def get_text(self) -> str:
-        """Get current text content.
+        """Get current text content (full unfiltered content).
 
         Returns:
-            Current text content
+            Full text content (not filtered)
         """
-        if not self._text_edit:
-            return ""
-        return self._text_edit.toPlainText()
+        return self._full_content
 
     def is_paused(self) -> bool:
         """Check if content is paused.
@@ -294,6 +357,75 @@ class ContentController:
         self.clear()
         logger.debug(f"Cleared content for {self._identifier}")
 
+    def _on_filter_changed(self, text: str) -> None:
+        """Handle filter text change.
+
+        Args:
+            text: New filter text
+        """
+        self._filter_text = text
+        self._apply_filter()
+
+    def _on_filter_case_changed(self, checked: bool) -> None:
+        """Handle case sensitivity checkbox change.
+
+        Args:
+            checked: Whether case insensitive is enabled
+        """
+        self._filter_case_insensitive = checked
+        if self._filter_text:
+            self._apply_filter()
+
+    def _on_filter_clear(self) -> None:
+        """Handle clear filter button click."""
+        if self._filter_input:
+            self._filter_input.clear()
+        self._filter_text = ""
+        self._apply_filter()
+
+    def _filter_content(self, content: str) -> str:
+        """Filter content to only include matching lines.
+
+        Args:
+            content: Content to filter
+
+        Returns:
+            Filtered content with only matching lines
+        """
+        if not self._filter_text:
+            return content
+
+        lines = content.split("\n")
+        filter_text = self._filter_text
+
+        if self._filter_case_insensitive:
+            filter_text = filter_text.lower()
+            matching_lines = [line for line in lines if filter_text in line.lower()]
+        else:
+            matching_lines = [line for line in lines if filter_text in line]
+
+        return "\n".join(matching_lines)
+
+    def _apply_filter(self) -> None:
+        """Apply current filter to full content."""
+        if not self._text_edit:
+            return
+
+        if self._filter_text:
+            filtered = self._filter_content(self._full_content)
+            self._text_edit.setPlainText(filtered)
+            self._filtered_line_count = filtered.count("\n")
+        else:
+            self._text_edit.setPlainText(self._full_content)
+            self._filtered_line_count = 0
+
+        # Auto-scroll if in live mode
+        if self._is_live:
+            self._text_edit.moveCursor(QTextCursor.MoveOperation.End)
+
+        self._update_status()
+        logger.debug(f"Applied filter '{self._filter_text}' for {self._identifier}")
+
     def _update_status(self) -> None:
         """Update status bar text."""
         if not self._status_bar:
@@ -305,7 +437,12 @@ class ContentController:
         if self._show_filename:
             parts.append(f"📄 {self._identifier}")
 
-        parts.append(f"📊 {self._line_count:,} lines")
+        if self._filter_text:
+            parts.append(
+                f"📊 {self._filtered_line_count:,}/{self._line_count:,} lines (filtered)"
+            )
+        else:
+            parts.append(f"📊 {self._line_count:,} lines")
 
         mode = "🔴 LIVE" if self._is_live else "⏸ SCROLL"
         parts.append(mode)
@@ -332,15 +469,19 @@ class ContentController:
         Args:
             size: Font size in points
         """
+        font = self._fonts.get_ui_font(size)
         if self._pause_btn:
-            font = self._fonts.get_ui_font(size)
             self._pause_btn.setFont(font)
         if self._clear_btn:
-            font = self._fonts.get_ui_font(size)
             self._clear_btn.setFont(font)
         if self._go_live_btn:
-            font = self._fonts.get_ui_font(size, bold=True)
-            self._go_live_btn.setFont(font)
+            self._go_live_btn.setFont(self._fonts.get_ui_font(size, bold=True))
+        if self._filter_input:
+            self._filter_input.setFont(font)
+        if self._filter_case_checkbox:
+            self._filter_case_checkbox.setFont(font)
+        if self._filter_clear_btn:
+            self._filter_clear_btn.setFont(font)
 
     def set_status_font_size(self, size: int) -> None:
         """Set status bar font size.

@@ -35,6 +35,7 @@ class LogGroupWindow(QWidget):
         group_name: str,
         theme_colors: dict | None = None,
         parent: QWidget | None = None,
+        initial_mode: str = "combined",
     ) -> None:
         """Initialize the log group window.
 
@@ -42,6 +43,7 @@ class LogGroupWindow(QWidget):
             group_name: Name of the log group
             theme_colors: Theme color settings
             parent: Parent widget
+            initial_mode: Initial display mode ("tabbed" or "combined")
         """
         super().__init__(parent)
         self.group_name = group_name
@@ -54,9 +56,11 @@ class LogGroupWindow(QWidget):
         self._set_default_size_callback: Callable[[int, int], None] | None = None
         self._get_other_windows_callback: Callable[[], list] | None = None
         self._snap_threshold = 20
+        self._mode_changed_callback: Callable[[str], None] | None = None
 
-        # Mode: "tabbed" or "combined"
-        self._mode = "tabbed"
+        # Mode: "tabbed" or "combined" - store initial mode to apply after setup
+        self._initial_mode = initial_mode
+        self._mode = "tabbed"  # Start in tabbed, switch after logs added
 
         # Track log files in this group
         self._log_paths: list[str] = []
@@ -77,6 +81,7 @@ class LogGroupWindow(QWidget):
         # Debouncing for combined clear to prevent spam
         self._last_combined_clear_time: float = 0
         self._last_mode_switch_time: float = 0
+        self._initialized = False
 
         self._setup_ui()
 
@@ -215,6 +220,31 @@ class LogGroupWindow(QWidget):
             self._switch_to_combined()
         else:
             self._switch_to_tabbed()
+
+        # Notify callback of mode change
+        if self._mode_changed_callback:
+            self._mode_changed_callback(self._mode)
+
+    def set_mode_changed_callback(self, callback: Callable[[str], None]) -> None:
+        """Set callback for when mode changes.
+
+        Args:
+            callback: Function that takes the new mode string
+        """
+        self._mode_changed_callback = callback
+
+    def initialize_mode(self) -> None:
+        """Initialize to the requested mode after logs are added.
+
+        Call this after all logs have been added to the group.
+        """
+        if self._initialized:
+            return
+
+        self._initialized = True
+        if self._initial_mode == "combined" and self._mode != "combined":
+            self._switch_to_combined()
+            logger.info(f"Initialized group {self.group_name} in combined mode")
 
     def _switch_to_combined(self) -> None:
         """Switch to combined mode."""
@@ -476,37 +506,6 @@ class LogGroupWindow(QWidget):
         self._log_buffers[path] = ""
         self._update_tab_status(path)
 
-    def _on_combined_scroll_changed(self) -> None:
-        """Handle scroll change in combined mode."""
-        if not self._combined_controller:
-            return
-
-        # Combined controller handles scroll changes internally
-        # This method is no longer needed but kept for compatibility
-        pass
-
-    def _on_combined_go_live(self) -> None:
-        """Handle Go Live button click in combined mode."""
-        if not self._combined_controller:
-            return
-
-        # Combined controller handles go live internally
-        # This method is no longer needed but kept for compatibility
-        pass
-
-    def _on_combined_pause(self, checked: bool) -> None:
-        """Handle Pause button toggle in combined mode.
-
-        Args:
-            checked: Whether pause is enabled
-        """
-        if not self._combined_controller:
-            return
-
-        # Combined controller handles pause internally
-        # This method is no longer needed but kept for compatibility
-        pass
-
     def _on_combined_clear(self) -> None:
         """Handle Clear button click in combined mode.
 
@@ -542,15 +541,6 @@ class LogGroupWindow(QWidget):
         self._combined_line_count = 0
 
         logger.info("Combined view cleared successfully")
-
-    def _update_combined_status(self) -> None:
-        """Update status bar for combined mode."""
-        if not self._combined_controller:
-            return
-
-        # Combined controller handles status updates internally
-        # This method is no longer needed but kept for compatibility
-        pass
 
     def _on_set_default_size_clicked(self) -> None:
         """Handle Set Default Size button click."""

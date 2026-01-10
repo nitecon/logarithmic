@@ -6,7 +6,7 @@ echo Logarithmic Build Script
 echo ========================================
 echo.
 
-REM Get version from git tag
+REM --- 0. Get Version from Git Tag ---
 for /f "delims=" %%i in ('git describe --tags --abbrev=0 2^>nul') do set GIT_TAG=%%i
 if defined GIT_TAG (
     REM Remove 'v' prefix if present
@@ -14,64 +14,64 @@ if defined GIT_TAG (
 ) else (
     set APP_VERSION=1.0.0
 )
-echo Building version: %APP_VERSION%
+echo == Building version: %APP_VERSION% ==
 echo.
+
+REM --- 1. Check Prerequisites ---
+echo [1/5] Checking prerequisites...
 
 REM Check if .venv exists
 if not exist ".venv\" (
-    echo [1/5] Creating virtual environment...
-    python3.13 -m venv .venv
+    echo ERROR: Virtual environment not found.
+    echo Please run: python -m venv .venv
+    echo Then: .venv\Scripts\pip.exe install -r requirements.txt
+    pause
+    exit /b 1
+)
+
+REM Check if pyinstaller is installed
+.venv\Scripts\pip.exe show pyinstaller >nul 2>&1
+if errorlevel 1 (
+    echo Installing PyInstaller...
+    .venv\Scripts\pip.exe install pyinstaller --quiet
     if errorlevel 1 (
-        echo ERROR: Failed to create virtual environment
+        echo ERROR: Failed to install PyInstaller
         pause
         exit /b 1
     )
-    echo Virtual environment created successfully.
-    echo.
-) else (
-    echo [1/5] Virtual environment already exists.
-    echo.
 )
-
-REM Install/update dependencies
-echo [2/5] Installing/updating dependencies...
-.venv\Scripts\python.exe -m pip install --upgrade pip --quiet
-.venv\Scripts\pip.exe install -r requirements.txt --quiet
-if errorlevel 1 (
-    echo ERROR: Failed to install dependencies
-    pause
-    exit /b 1
-)
-echo Dependencies installed successfully.
+echo Prerequisites OK.
 echo.
 
-REM Install PyInstaller
-echo [3/5] Installing PyInstaller...
-.venv\Scripts\pip.exe install pyinstaller --quiet
-if errorlevel 1 (
-    echo ERROR: Failed to install PyInstaller
-    pause
-    exit /b 1
-)
-echo PyInstaller installed.
-echo.
-
-REM Set PYTHONPATH
-set PYTHONPATH=%CD%\src
-
-REM Kill any running instances
-echo [4/5] Checking for running instances...
+REM --- 2. Kill Running Instances ---
+echo [2/5] Checking for running instances...
 taskkill /F /IM Logarithmic.exe >nul 2>&1
 if errorlevel 1 (
     echo No running instances found.
 ) else (
     echo Killed running instance.
-    timeout /t 1 /nobreak >nul
+    timeout /t 2 /nobreak >nul
 )
 echo.
 
-REM Build the exe
-echo [5/6] Building executable...
+REM --- 3. Clean Previous Build ---
+echo [3/5] Cleaning previous build...
+if exist "build\" (
+    echo Removing build directory...
+    rmdir /s /q build
+)
+if exist "dist\" (
+    echo Removing dist directory...
+    rmdir /s /q dist
+)
+echo Clean complete.
+echo.
+
+REM --- 4. Set Environment and Build ---
+echo [4/5] Building executable...
+set PYTHONPATH=%CD%\src
+set APP_VERSION=%APP_VERSION%
+
 .venv\Scripts\pyinstaller.exe Logarithmic.spec
 
 if errorlevel 1 (
@@ -80,22 +80,26 @@ if errorlevel 1 (
     exit /b 1
 )
 echo.
+
+REM --- 5. Verify Build ---
+echo [5/5] Verifying build...
+if not exist "dist\Logarithmic.exe" (
+    echo ERROR: Build verification failed - executable not found
+    pause
+    exit /b 1
+)
+
+for %%A in ("dist\Logarithmic.exe") do echo Executable size: %%~zA bytes
+echo.
+
 echo ========================================
 echo Build Complete!
 echo ========================================
 echo.
-
-REM Run the exe
-echo [6/6] Launching Logarithmic...
-echo.
 echo Executable location: %CD%\dist\Logarithmic.exe
 echo.
-echo To run from CLI:
+echo To run:
 echo   .\dist\Logarithmic.exe
 echo.
-echo Starting application...
-echo.
-
-dist\Logarithmic.exe
 
 endlocal

@@ -111,9 +111,52 @@ class LogarithmicMcpServer:
                     },
                 ),
                 Tool(
+                    name="get_log_last_lines",
+                    description="Get the last N lines from a specific log. Useful for getting recent log entries without retrieving the entire log.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "log_id": {
+                                "type": "string",
+                                "description": "The ID of the log to retrieve",
+                            },
+                            "num_lines": {
+                                "type": "integer",
+                                "description": "Number of lines to retrieve (500, 1000, or 5000)",
+                                "enum": [500, 1000, 5000],
+                            },
+                        },
+                        "required": ["log_id", "num_lines"],
+                    },
+                ),
+                Tool(
                     name="list_logs",
                     description="List all available logs with their IDs and descriptions",
                     inputSchema={"type": "object", "properties": {}},
+                ),
+                Tool(
+                    name="list_groups",
+                    description="List all log groups with their metadata. Groups can contain multiple logs and may have a combined view.",
+                    inputSchema={"type": "object", "properties": {}},
+                ),
+                Tool(
+                    name="get_group_content",
+                    description="Get content from a log group. Prioritizes combined view if available, otherwise returns concatenated individual logs.",
+                    inputSchema={
+                        "type": "object",
+                        "properties": {
+                            "group_name": {
+                                "type": "string",
+                                "description": "Name of the log group",
+                            },
+                            "num_lines": {
+                                "type": "integer",
+                                "description": "Optional: limit to last N lines (500, 1000, or 5000). If not specified, returns all content.",
+                                "enum": [500, 1000, 5000],
+                            },
+                        },
+                        "required": ["group_name"],
+                    },
                 ),
                 Tool(
                     name="search_logs",
@@ -185,6 +228,99 @@ class LogarithmicMcpServer:
 
                 return [TextContent(type="text", text=result)]
 
+            elif name == "get_log_last_lines":
+                log_id = arguments.get("log_id")
+                num_lines = arguments.get("num_lines")
+
+                if not log_id:
+                    return [TextContent(type="text", text="Error: log_id is required")]
+                if not num_lines:
+                    return [
+                        TextContent(type="text", text="Error: num_lines is required")
+                    ]
+                if num_lines not in [500, 1000, 5000]:
+                    return [
+                        TextContent(
+                            type="text",
+                            text="Error: num_lines must be 500, 1000, or 5000",
+                        )
+                    ]
+
+                content = self._bridge.get_last_n_lines(log_id, num_lines)
+                if content is None:
+                    return [
+                        TextContent(
+                            type="text", text=f"Error: Log '{log_id}' not found"
+                        )
+                    ]
+
+                log_info = self._bridge.get_log_info(log_id)
+                desc = log_info["description"] if log_info else log_id
+                return [
+                    TextContent(
+                        type="text",
+                        text=f"Last {num_lines} lines from: {desc}\n\n{content}",
+                    )
+                ]
+
+            elif name == "list_groups":
+                groups = self._bridge.get_groups()
+                if not groups:
+                    return [
+                        TextContent(
+                            type="text", text="No log groups are currently defined."
+                        )
+                    ]
+
+                result = "Available log groups:\n\n"
+                for group_name, group_info in groups.items():
+                    result += f"- Group: {group_name}\n"
+                    result += f"  Logs: {group_info['log_count']}\n"
+                    result += (
+                        f"  Combined View: "
+                        f"{'Yes' if group_info['has_combined_view'] else 'No'}\n"
+                    )
+                    result += f"  Log paths: {', '.join(group_info['logs'])}\n\n"
+
+                return [TextContent(type="text", text=result)]
+
+            elif name == "get_group_content":
+                grp_name = arguments.get("group_name")
+                line_limit = arguments.get("num_lines")  # Optional
+
+                if not grp_name:
+                    return [
+                        TextContent(type="text", text="Error: group_name is required")
+                    ]
+                if line_limit and line_limit not in [500, 1000, 5000]:
+                    return [
+                        TextContent(
+                            type="text",
+                            text="Error: num_lines must be 500, 1000, or 5000",
+                        )
+                    ]
+
+                group_content = self._bridge.get_group_content(grp_name, line_limit)
+                if group_content is None:
+                    return [
+                        TextContent(
+                            type="text",
+                            text=f"Error: Group '{grp_name}' not found",
+                        )
+                    ]
+
+                source = group_content["source"]
+                grp_content = group_content["content"]
+                log_count = group_content["log_count"]
+
+                header = f"Group: {grp_name} ({log_count} logs)\n"
+                header += f"Source: {source}\n"
+                if line_limit:
+                    header += f"Lines: last {line_limit}\n"
+                header += "\n"
+
+                return [TextContent(type="text", text=header + grp_content)]
+
             elif name == "search_logs":
                 pattern = arguments.get("pattern")
                 case_sensitive = arguments.get("case_sensitive", False)
@@ -253,25 +389,19 @@ class LogarithmicMcpServer:
         logger.info("Stopping MCP server...")
 
         # Gracefully shutdown uvicorn server
-        if self._uvicorn_server and self._loop:
+        if self._uvicorn_server and self._loop and self._loop.is_running():
             try:
-                # Schedule shutdown on the event loop
-                future = asyncio.run_coroutine_threadsafe(
-                    self._uvicorn_server.shutdown(), self._loop
-                )
-                # Wait for shutdown to complete
-                future.result(timeout=3.0)
-                logger.debug("Uvicorn server shutdown complete")
+                # Set should_exit flag to trigger graceful shutdown
+                self._uvicorn_server.should_exit = True
+                logger.debug("Signaled uvicorn server to exit")
             except Exception as e:
-                logger.warning(f"Error during uvicorn shutdown: {e}")
+                logger.warning(f"Error signaling uvicorn shutdown: {e}")
 
-        # Stop the event loop
-        if self._loop and self._loop.is_running():
-            self._loop.call_soon_threadsafe(self._loop.stop)
-
-        # Wait for thread to finish
+        # Wait for thread to finish (uvicorn will exit gracefully)
         if self._thread:
             self._thread.join(timeout=5.0)
+            if self._thread.is_alive():
+                logger.warning("MCP server thread did not exit cleanly")
 
         logger.info("MCP server stopped")
 

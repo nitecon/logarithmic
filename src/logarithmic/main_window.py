@@ -32,7 +32,6 @@ from PySide6.QtWidgets import QWidget
 
 from logarithmic.exceptions import FileAccessError
 from logarithmic.exceptions import InvalidPathError
-from logarithmic.file_watcher import FileWatcherThread
 from logarithmic.fonts import get_font_manager
 from logarithmic.k8s_selector_dialog import K8sSelectorDialog
 from logarithmic.log_group_window import LogGroupWindow
@@ -48,7 +47,8 @@ from logarithmic.providers import ProviderRegistry
 from logarithmic.providers import ProviderType
 from logarithmic.settings import Settings
 from logarithmic.shutdown_dialog import ShutdownDialog
-from logarithmic.wildcard_watcher import WildcardFileWatcher
+from logarithmic.version_checker import UpdateAvailableDialog
+from logarithmic.version_checker import VersionChecker
 
 logger = logging.getLogger(__name__)
 
@@ -227,11 +227,8 @@ class MainWindow(QMainWindow):
         # Provider registry
         self._provider_registry = ProviderRegistry.get_instance()
 
-        # Track active watchers/providers and viewer windows
-        self._watchers: dict[
-            str, FileWatcherThread | WildcardFileWatcher
-        ] = {}  # Legacy watchers (for backward compat)
-        self._providers: dict[str, LogProvider] = {}  # New provider-based system
+        # Track active providers and viewer windows
+        self._providers: dict[str, LogProvider] = {}
         self._viewer_windows: dict[str, LogViewerWindow] = {}
         self._group_windows: dict[str, LogGroupWindow] = {}  # group_name -> window
         self._log_groups: dict[str, str] = {}  # path_key -> group_name
@@ -261,11 +258,15 @@ class MainWindow(QMainWindow):
             self._on_content_available_for_auto_open
         )
 
+        # Version checker
+        self._version_checker: VersionChecker | None = None
+
         self._setup_ui()
         self._restore_session()
         self._initialize_mcp_server()
         self._restore_main_window_position()
         self._load_font_sizes()
+        self._check_for_updates()
 
     def _setup_ui(self) -> None:
         """Set up the user interface."""
@@ -694,6 +695,33 @@ class MainWindow(QMainWindow):
         self._ui_elements.append(restart_note)
 
         settings_layout.addWidget(mcp_frame)
+
+        # About / Updates section
+        about_frame = QFrame()
+        about_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        about_layout = QVBoxLayout(about_frame)
+
+        self.about_title = QLabel("About")
+        self.about_title.setFont(self._fonts.get_ui_font(12, bold=True))
+        about_layout.addWidget(self.about_title)
+        self._ui_elements.append(self.about_title)
+
+        # Version label
+        from logarithmic.version_checker import get_current_version
+
+        self.version_label = QLabel(f"Version: {get_current_version()}")
+        self.version_label.setFont(self._fonts.get_ui_font(10))
+        about_layout.addWidget(self.version_label)
+        self._ui_elements.append(self.version_label)
+
+        # Check for updates button
+        self.check_updates_button = QPushButton("Check for Updates")
+        self.check_updates_button.setFont(self._fonts.get_ui_font(10))
+        self.check_updates_button.clicked.connect(self._on_check_updates_clicked)
+        about_layout.addWidget(self.check_updates_button)
+        self._ui_elements.append(self.check_updates_button)
+
+        settings_layout.addWidget(about_frame)
         settings_layout.addStretch()
 
         self.tabs.addTab(settings_tab, "⚙️ Settings")
@@ -924,7 +952,7 @@ class MainWindow(QMainWindow):
             is_wildcard = True
 
         # Check if already tracking
-        if path_key in self._providers or path_key in self._watchers:
+        if path_key in self._providers:
             QMessageBox.warning(
                 self,
                 "Already Tracking",
@@ -1028,18 +1056,6 @@ class MainWindow(QMainWindow):
                 )
                 new_provider.start()
                 self._providers[path_key] = new_provider
-        elif path_key in self._watchers:
-            # Legacy watcher system
-            watcher = self._watchers[path_key]
-            watcher.stop()
-            watcher.wait()  # Wait for thread to finish
-
-            # Start new watcher
-            is_wildcard = "*" in path_key or "?" in path_key
-            if is_wildcard:
-                self._start_wildcard_watcher(path_key, path_key)
-            else:
-                self._start_watcher(path_key, Path(path_key))
 
         logger.info(f"Refreshed log: {path_key}")
 
@@ -1203,7 +1219,10 @@ class MainWindow(QMainWindow):
             group_name: Name of the group
         """
         theme_colors = self._settings.get_theme_colors()
-        group_window = LogGroupWindow(group_name, theme_colors=theme_colors)
+        initial_mode = self._settings.get_group_mode(group_name)
+        group_window = LogGroupWindow(
+            group_name, theme_colors=theme_colors, initial_mode=initial_mode
+        )
         group_window.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         group_window.destroyed.connect(lambda: self._on_group_window_closed(group_name))
 
@@ -1217,6 +1236,9 @@ class MainWindow(QMainWindow):
         group_window.set_other_windows_callback(
             lambda: list(self._viewer_windows.values())
             + [gw for gw in self._group_windows.values() if gw != group_window]
+        )
+        group_window.set_mode_changed_callback(
+            lambda mode: self._settings.set_group_mode(group_name, mode)
         )
 
         # Restore position if saved
@@ -1241,6 +1263,9 @@ class MainWindow(QMainWindow):
             if group == group_name:
                 group_window.add_log(path)
                 self._log_manager.subscribe(path, group_window)
+
+        # Initialize to saved mode (combined by default) after logs are added
+        group_window.initialize_mode()
 
         self._group_windows[group_name] = group_window
         group_window.show()
@@ -1382,11 +1407,6 @@ class MainWindow(QMainWindow):
             del self._providers[path_key]
             if path_key in self._provider_configs:
                 del self._provider_configs[path_key]
-        elif path_key in self._watchers:
-            watcher = self._watchers[path_key]
-            watcher.stop()
-            watcher.wait()
-            del self._watchers[path_key]
 
         # Close viewer window
         if path_key in self._viewer_windows:
@@ -1448,16 +1468,11 @@ class MainWindow(QMainWindow):
         viewer.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         viewer.destroyed.connect(lambda: self._on_viewer_window_closed(path_key))
 
-        # Connect provider/watcher pause/resume to content controller pause callback
+        # Connect provider pause/resume to content controller pause callback
         if path_key in self._providers:
             provider = self._providers[path_key]
             viewer.set_pause_callback(
                 lambda paused: provider.pause() if paused else provider.resume()
-            )
-        elif path_key in self._watchers:
-            watcher = self._watchers[path_key]
-            viewer.set_pause_callback(
-                lambda paused: watcher.pause() if paused else watcher.resume()
             )
 
         # Restore position if requested
@@ -1605,44 +1620,6 @@ class MainWindow(QMainWindow):
 
         # Update open windows list
         self._save_open_windows()
-
-    def _start_watcher(self, path_key: str, file_path: Path) -> None:
-        """Start a watcher thread for a log file.
-
-        Args:
-            path_key: Path key identifying the log file
-            file_path: Path object for the log file
-        """
-        watcher = FileWatcherThread(file_path, self._log_manager, path_key)
-        watcher.new_lines.connect(lambda text: self._on_new_lines(path_key, text))
-        watcher.file_created.connect(lambda: self._on_file_created(path_key))
-        watcher.file_deleted.connect(lambda: self._on_file_deleted(path_key))
-        watcher.error_occurred.connect(
-            lambda err: self._on_watcher_error(path_key, err)
-        )
-        watcher.start()
-
-        self._watchers[path_key] = watcher
-
-    def _start_wildcard_watcher(self, path_key: str, pattern: str) -> None:
-        """Start a wildcard watcher thread for a glob pattern.
-
-        Args:
-            path_key: Path key identifying the pattern
-            pattern: Glob pattern (e.g., "C:/logs/Cook-*.txt")
-        """
-        watcher = WildcardFileWatcher(pattern, self._log_manager, path_key)
-        watcher.new_lines.connect(lambda text: self._on_new_lines(path_key, text))
-        watcher.file_switched.connect(
-            lambda old, new: self._on_file_switched(path_key, old, new)
-        )
-        watcher.error_occurred.connect(
-            lambda err: self._on_watcher_error(path_key, err)
-        )
-        watcher.start()
-
-        self._watchers[path_key] = watcher
-        logger.info(f"Started wildcard watcher for pattern: {pattern}")
 
     def _save_open_windows(self) -> None:
         """Save list of currently open viewer windows."""
@@ -1837,6 +1814,9 @@ class MainWindow(QMainWindow):
             # Create MCP bridge
             self._mcp_bridge = McpBridge(self._log_manager, self._settings)
 
+            # Set callback for group windows access (for combined view)
+            self._mcp_bridge.set_group_windows_callback(lambda: self._group_windows)
+
             # Subscribe to all tracked logs
             self._mcp_bridge.subscribe_to_all_tracked_logs()
 
@@ -1883,11 +1863,9 @@ class MainWindow(QMainWindow):
                 if self._log_groups.get(path_key) == group_name:
                     self._log_manager.unsubscribe(path_key, group_window)
 
-        # Stop all providers and watchers
+        # Stop all providers
         for provider in self._providers.values():
             provider.stop()
-        for watcher in self._watchers.values():
-            watcher.stop()
 
         # Close all viewer windows
         for viewer in list(self._viewer_windows.values()):
@@ -1900,13 +1878,10 @@ class MainWindow(QMainWindow):
         # Unregister all logs from log manager
         for path_key in list(self._providers.keys()):
             self._log_manager.unregister_log(path_key)
-        for path_key in list(self._watchers.keys()):
-            self._log_manager.unregister_log(path_key)
 
         # Clear data structures
         self._providers.clear()
         self._provider_configs.clear()
-        self._watchers.clear()
         self._viewer_windows.clear()
         self._group_windows.clear()
         self._log_groups.clear()
@@ -1945,14 +1920,14 @@ class MainWindow(QMainWindow):
         This is a fallback for when Windows fails to detect file changes properly.
         It prints a separator to all streams and reloads the file content from start.
         """
-        if not self._providers and not self._watchers:
+        if not self._providers:
             logger.info("No active streams to restart")
             return
 
         logger.info("Restarting all streams...")
 
         # Get all active path keys
-        all_path_keys = list(self._providers.keys()) + list(self._watchers.keys())
+        all_path_keys = list(self._providers.keys())
 
         for path_key in all_path_keys:
             # Emit restart separator to the stream
@@ -1962,7 +1937,7 @@ class MainWindow(QMainWindow):
             # Clear buffer and reload file from beginning
             self._log_manager.clear_buffer(path_key)
 
-            # Restart the provider or watcher
+            # Restart the provider
             if path_key in self._providers:
                 provider = self._providers[path_key]
                 provider.stop()
@@ -1978,17 +1953,6 @@ class MainWindow(QMainWindow):
                     )
                     new_provider.start()
                     self._providers[path_key] = new_provider
-            elif path_key in self._watchers:
-                watcher = self._watchers[path_key]
-                watcher.stop()
-                watcher.wait()
-
-                # Start new watcher
-                is_wildcard = "*" in path_key or "?" in path_key
-                if is_wildcard:
-                    self._start_wildcard_watcher(path_key, path_key)
-                else:
-                    self._start_watcher(path_key, Path(path_key))
 
         logger.info(f"Restarted {len(all_path_keys)} stream(s)")
 
@@ -2122,7 +2086,7 @@ class MainWindow(QMainWindow):
                 path_key = dialog.wildcard_pattern
 
                 # Check if already tracking
-                if path_key in self._providers or path_key in self._watchers:
+                if path_key in self._providers:
                     QMessageBox.information(
                         self,
                         "Already Tracking",
@@ -2169,7 +2133,7 @@ class MainWindow(QMainWindow):
                 file_path = Path(path_key)
 
                 # Check if already tracking
-                if path_key in self._providers or path_key in self._watchers:
+                if path_key in self._providers:
                     QMessageBox.information(
                         self,
                         "Already Tracking",
@@ -2297,13 +2261,6 @@ class MainWindow(QMainWindow):
                 logger.debug(f"Stopping provider for: {path_key}")
                 provider.stop()
 
-            # Stop all watchers
-            shutdown_dialog.update_status("Shutting down log watchers...")
-            QApplication.processEvents()
-            for path_key, watcher in self._watchers.items():
-                logger.debug(f"Stopping watcher for: {path_key}")
-                watcher.stop()
-
             # Wait for all provider threads to finish (with timeout)
             total_providers = len(self._providers)
             for idx, (path_key, provider) in enumerate(self._providers.items(), 1):
@@ -2323,19 +2280,6 @@ class MainWindow(QMainWindow):
                         )
                     else:
                         logger.debug(f"Provider thread finished: {path_key}")
-
-            # Wait for all watcher threads to finish (with timeout)
-            total_watchers = len(self._watchers)
-            for idx, (path_key, watcher) in enumerate(self._watchers.items(), 1):
-                shutdown_dialog.update_status(
-                    f"Waiting for watchers to finish ({idx}/{total_watchers})..."
-                )
-                QApplication.processEvents()
-                logger.debug(f"Waiting for watcher thread to finish: {path_key}")
-                if not watcher.wait(2000):  # Wait up to 2 seconds
-                    logger.warning(f"Watcher thread did not finish in time: {path_key}")
-                else:
-                    logger.debug(f"Watcher thread finished: {path_key}")
 
             # Close all viewer windows
             shutdown_dialog.update_status("Closing viewer windows...")
@@ -2420,10 +2364,6 @@ class MainWindow(QMainWindow):
                 if self._log_groups.get(path_key) == group_name:
                     self._log_manager.unsubscribe(path_key, group_window)
 
-        # Stop all watchers
-        for watcher in list(self._watchers.values()):
-            watcher.stop()
-
         # Close all windows
         for viewer in list(self._viewer_windows.values()):
             viewer.close()
@@ -2431,7 +2371,6 @@ class MainWindow(QMainWindow):
             group_window.close()
 
         # Clear data structures
-        self._watchers.clear()
         self._viewer_windows.clear()
         self._group_windows.clear()
         self._log_groups.clear()
@@ -2736,6 +2675,8 @@ class MainWindow(QMainWindow):
             # Create MCP bridge if not exists
             if not self._mcp_bridge:
                 self._mcp_bridge = McpBridge(self._log_manager, self._settings)
+                # Set callback for group windows access (for combined view)
+                self._mcp_bridge.set_group_windows_callback(lambda: self._group_windows)
                 # Subscribe to all tracked logs
                 self._mcp_bridge.subscribe_to_all_tracked_logs()
 
@@ -2789,3 +2730,72 @@ class MainWindow(QMainWindow):
                 "MCP Server Error",
                 f"Failed to stop MCP server: {e}",
             )
+
+    def _check_for_updates(self) -> None:
+        """Check for application updates on startup."""
+        self._version_checker = VersionChecker(self)
+        self._version_checker.update_available.connect(self._on_update_available)
+        self._version_checker.check_for_updates()
+
+    def _on_check_updates_clicked(self) -> None:
+        """Handle Check for Updates button click."""
+        self.check_updates_button.setEnabled(False)
+        self.check_updates_button.setText("Checking...")
+
+        # Create a new checker for manual check
+        checker = VersionChecker(self)
+        checker.update_available.connect(self._on_manual_update_available)
+        checker.no_update_available.connect(self._on_manual_no_update)
+        checker.check_failed.connect(self._on_manual_check_failed)
+
+        # Store reference to prevent garbage collection
+        self._manual_version_checker = checker
+        checker.check_for_updates()
+
+    def _on_manual_update_available(
+        self, current_version: str, latest_version: str, release_url: str
+    ) -> None:
+        """Handle manual update check result when update is available."""
+        self._reset_check_updates_button()
+        dialog = UpdateAvailableDialog(
+            current_version, latest_version, release_url, self
+        )
+        dialog.exec()
+
+    def _on_manual_no_update(self, current_version: str) -> None:
+        """Handle manual update check when already up to date."""
+        self._reset_check_updates_button()
+        QMessageBox.information(
+            self,
+            "No Updates Available",
+            f"You are running the latest version ({current_version}).",
+        )
+
+    def _on_manual_check_failed(self, error: str) -> None:
+        """Handle manual update check failure."""
+        self._reset_check_updates_button()
+        QMessageBox.warning(
+            self,
+            "Update Check Failed",
+            f"Could not check for updates.\n\nError: {error}",
+        )
+
+    def _reset_check_updates_button(self) -> None:
+        """Reset the check updates button state."""
+        self.check_updates_button.setEnabled(True)
+        self.check_updates_button.setText("Check for Updates")
+
+    def _on_update_available(
+        self, current_version: str, latest_version: str, release_url: str
+    ) -> None:
+        """Handle update available notification.
+
+        Args:
+            current_version: Current app version
+            latest_version: Latest available version
+            release_url: URL to the release page
+        """
+        dialog = UpdateAvailableDialog(
+            current_version, latest_version, release_url, self
+        )
+        dialog.exec()

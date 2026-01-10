@@ -111,3 +111,36 @@ def test_log_metadata(mock_settings: Path) -> None:
 
     settings.remove_log_metadata("log1")
     assert settings.get_log_metadata("log1") is None
+
+
+def test_group_mode_default(mock_settings: Path) -> None:
+    """Test that group mode defaults to combined."""
+    settings = Settings()
+
+    # New groups should default to combined mode
+    mode = settings.get_group_mode("NewGroup")
+    assert mode == "combined"
+
+
+def test_group_mode_persistence(mock_settings: Path) -> None:
+    """Test setting and getting group mode."""
+    settings = Settings()
+
+    # Set to tabbed mode
+    settings.set_group_mode("TestGroup", "tabbed")
+    assert settings.get_group_mode("TestGroup") == "tabbed"
+
+    # Set to combined mode
+    settings.set_group_mode("TestGroup", "combined")
+    assert settings.get_group_mode("TestGroup") == "combined"
+
+
+def test_group_mode_multiple_groups(mock_settings: Path) -> None:
+    """Test that different groups can have different modes."""
+    settings = Settings()
+
+    settings.set_group_mode("Group1", "tabbed")
+    settings.set_group_mode("Group2", "combined")
+
+    assert settings.get_group_mode("Group1") == "tabbed"
+    assert settings.get_group_mode("Group2") == "combined"

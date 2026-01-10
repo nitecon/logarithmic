@@ -67,6 +67,7 @@ class Settings:
                 "default_window_height": 800,  # ~40 lines with controls
                 "groups": [],  # List of group names
                 "log_groups": {},  # path_key -> group_name mapping
+                "group_modes": {},  # group_name -> mode ("tabbed" or "combined")
                 "main_window_position": None,  # Main window position/size
                 "font_sizes": {  # Font size settings
                     "log_content": 13,
@@ -110,6 +111,8 @@ class Settings:
                 self._data["groups"] = []
             if "log_groups" not in self._data:
                 self._data["log_groups"] = {}
+            if "group_modes" not in self._data:
+                self._data["group_modes"] = {}
 
         except Exception as e:
             logger.error(f"Failed to load settings: {e}")
@@ -277,6 +280,32 @@ class Settings:
             log_groups: Dictionary mapping path_key to group_name
         """
         self._data["log_groups"] = log_groups
+        self._save()
+
+    def get_group_mode(self, group_name: str) -> str:
+        """Get the display mode for a group.
+
+        Args:
+            group_name: Name of the group
+
+        Returns:
+            Mode string ("tabbed" or "combined"), defaults to "combined"
+        """
+        modes = self._data.get("group_modes", {})
+        return (
+            modes.get(group_name, "combined") if isinstance(modes, dict) else "combined"
+        )
+
+    def set_group_mode(self, group_name: str, mode: str) -> None:
+        """Set the display mode for a group.
+
+        Args:
+            group_name: Name of the group
+            mode: Mode string ("tabbed" or "combined")
+        """
+        if "group_modes" not in self._data:
+            self._data["group_modes"] = {}
+        self._data["group_modes"][group_name] = mode
         self._save()
 
     # Session Management

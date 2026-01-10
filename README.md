@@ -29,6 +29,7 @@
 - **Pause/Resume** - Freeze updates while keeping the tail active in background
 - **Go Live Button** - Instantly jump back to the latest logs
 - **Clear on Demand** - Clear display without affecting the underlying log stream
+- **Log Filtering** - Real-time text filtering with case-insensitive option
 
 ### 🔧 **Advanced Capabilities**
 - **Multi-Window Design** - Each log opens in its own independent window
@@ -38,12 +39,18 @@
 - **Persistent Settings** - All preferences, window positions, and sessions saved automatically
 - **Multi-Monitor Support** - Seamless operation across multiple displays with F3 recovery for undocking
 
-### 🤖 **AI Integration (NEW!)**
+### 🤖 **AI Integration**
 - **MCP Server** - Built-in Model Context Protocol server for AI agent integration
 - **Claude Desktop Support** - Connect Claude to your logs for intelligent analysis
 - **Log Metadata** - Add human-readable IDs and descriptions for better AI understanding
 - **Search & Query Tools** - AI agents can list, search, and retrieve log content
 - **Thread-Safe Architecture** - MCP server runs asynchronously without blocking the UI
+
+### 🔄 **Auto-Update Notifications**
+- **Version Check** - Automatically checks for updates on startup
+- **Manual Check** - "Check for Updates" button in Settings
+- **Non-Blocking** - Background thread keeps UI responsive
+- **Smart Detection** - Detects dev builds vs release builds
 
 ### 💡 **Lost Your Windows After Undocking?**
 
@@ -58,6 +65,7 @@ No need to close and reopen the application or manually hunt for off-screen wind
 ## Quick Links
 
 - **[Release Process](.github/RELEASE.md)** - How to build and release
+- **[Changelog](Docs/Changelog.md)** - Version history and release notes
 - **[Coding Guidelines](Docs/CodingGuidelines.md)** - Python development standards
 - **[MCP Server Quick Start](Docs/MCP_Quickstart.md)** - Get started with AI integration
 - **[MCP Server Details](Docs/MCP_Details.md)** - Technical documentation for MCP server
@@ -225,10 +233,11 @@ Customize your experience:
 - **Log Content Font Size**: 6-24pt for log text
 - **UI Elements Font Size**: 6-18pt for buttons and labels
 - **Status Bar Font Size**: 6-14pt for status text
-- **MCP Server**: Enable AI agent integration (see [MCP Quick Start](Docs/MCP_QUICKSTART.md))
+- **MCP Server**: Enable AI agent integration (see [MCP Quick Start](Docs/MCP_Quickstart.md))
   - Enable/disable MCP server
   - Configure binding address (default: 127.0.0.1)
   - Configure port (default: 3000)
+- **About**: View current version and check for updates
 - **Theme Colors**: Customize error, warning, verbose, and default colors (coming soon)
 
 ### Window Recovery (F3 Hotkey)
@@ -348,8 +357,9 @@ logarithmic/
 │   │   └── release.yml         # Automated releases
 │   └── RELEASE.md              # Release documentation
 ├── Docs/
+│   ├── Changelog.md            # Version history and release notes
 │   ├── CodingGuidelines.md     # Development standards
-│   ├── MCP_QUICKSTART.md       # MCP server quick start guide
+│   ├── MCP_Quickstart.md       # MCP server quick start guide
 │   └── MCP_Details.md          # MCP server technical details
 ├── fonts/
 │   ├── Michroma/               # Title font
@@ -376,6 +386,7 @@ logarithmic/
 │       ├── mcp_bridge.py       # MCP server bridge
 │       ├── mcp_server.py       # MCP server implementation
 │       ├── settings.py         # Session & preferences
+│       ├── version_checker.py  # Auto-update version checking
 │       └── wildcard_watcher.py # Wildcard pattern support
 ├── .gitignore
 ├── LICENSE                     # Apache 2.0

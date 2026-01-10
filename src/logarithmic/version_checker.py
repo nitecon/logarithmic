@@ -5,7 +5,7 @@ Checks GitHub releases for newer versions and notifies the user.
 
 import logging
 import os
-import subprocess
+import subprocess  # nosec B404 - subprocess used only with hardcoded git commands
 from dataclasses import dataclass
 
 from PySide6.QtCore import QObject
@@ -55,7 +55,7 @@ def get_current_version() -> str:
     # Try git for development - use describe with dirty flag
     try:
         # Get full describe output including commits ahead and dirty state
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603 B607 - hardcoded git command, no user input
             ["git", "describe", "--tags", "--dirty", "--always"],
             capture_output=True,
             text=True,
@@ -145,7 +145,7 @@ class VersionCheckWorker(QObject):
                 },
             )
 
-            with urllib.request.urlopen(req, timeout=10) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:  # nosec B310 - URL is hardcoded GitHub API
                 import json
 
                 data = json.loads(response.read().decode())
@@ -301,6 +301,12 @@ class VersionChecker(QObject):
         if self._thread:
             self._thread.deleteLater()
             self._thread = None
+
+    def stop(self) -> None:
+        """Stop the version check thread if running."""
+        if self._thread and self._thread.isRunning():
+            self._thread.quit()
+            self._thread.wait(1000)  # Wait up to 1 second
 
     @property
     def current_version(self) -> str:

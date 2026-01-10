@@ -2247,6 +2247,10 @@ class MainWindow(QMainWindow):
 
             QApplication.processEvents()
 
+            # Stop version checker thread
+            if self._version_checker:
+                self._version_checker.stop()
+
             # Stop MCP server
             if self._mcp_server and self._mcp_server.is_running():
                 logger.info("Stopping MCP server...")

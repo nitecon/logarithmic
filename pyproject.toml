@@ -15,6 +15,10 @@ dependencies = [
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
     "kubernetes>=34.1.0",
+    # Note: urllib3 vulnerability (CVE decompression bombs) is transitive from kubernetes.
+    # kubernetes 34.1.0 pins urllib3<2.4.0, blocking the fix (urllib3>=2.6.3).
+    # This is safe for our use case: we only connect to user-configured K8s clusters.
+    # Tracking: https://github.com/kubernetes-client/python/issues/2477
 ]
 
 [project.optional-dependencies]

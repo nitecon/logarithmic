@@ -1,10 +1,24 @@
 """Pytest configuration and shared fixtures for Logarithmic tests."""
 
+import gc
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Generator
 
 import pytest
+from PySide6.QtWidgets import QApplication
+
+
+@pytest.fixture(scope="session", autouse=True)
+def cleanup_qt_threads():
+    """Ensure Qt threads are properly cleaned up after all tests."""
+    yield
+    # Force garbage collection to clean up any remaining Qt objects
+    gc.collect()
+    # Process any pending Qt events
+    app = QApplication.instance()
+    if app:
+        app.processEvents()
 
 
 @pytest.fixture

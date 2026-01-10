@@ -57,15 +57,16 @@ jobs:
 
       - name: Dependency audit with pip-audit
         run: |
-          # Ignore urllib3 SSRF vulnerabilities - they only affect Pyodide runtime (browser/Node.js)
-          # Logarithmic is a desktop application and doesn't use Pyodide
-          # CVE-2025-66418 and CVE-2025-66471 require urllib3 2.6.0+ but kubernetes pins <2.4.0
+          # Ignore urllib3 vulnerabilities - transitive from kubernetes which pins urllib3<2.4.0
+          # These require connecting to malicious servers; we only connect to user-configured K8s clusters
+          # Tracking: https://github.com/kubernetes-client/python/issues/2477
           # Skip editable packages (logarithmic itself)
           pip-audit --skip-editable \
             --ignore-vuln GHSA-48p4-8xcf-vxj5 \
             --ignore-vuln GHSA-pq67-6m6q-mj2v \
-            --ignore-vuln CVE-2025-66418 \
-            --ignore-vuln CVE-2025-66471
+            --ignore-vuln GHSA-38jv-5279-wg99 \
+            --ignore-vuln GHSA-9wx4-h78v-vm56 \
+            --ignore-vuln GHSA-g4mx-q9vg-27p4
 
   test:
     name: Test on ${{ matrix.os }} with Python ${{ matrix.python-version }}

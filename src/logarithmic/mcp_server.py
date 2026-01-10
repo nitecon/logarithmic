@@ -538,12 +538,13 @@ class LogarithmicMcpServer:
             self._startup_event.set()
             return
 
-        # Configure uvicorn
+        # Configure uvicorn - disable its logging config to avoid conflicts with PyInstaller
         config = uvicorn.Config(
             app,
             host=self._host,
             port=self._port,
-            log_level="info",
+            log_level="warning",  # Reduce noise, our logger handles MCP events
+            log_config=None,  # Disable uvicorn's logging config (fixes PyInstaller builds)
         )
         self._uvicorn_server = uvicorn.Server(config)
 

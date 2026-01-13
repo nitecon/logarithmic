@@ -11,11 +11,24 @@ from logarithmic.main_window import MainWindow
 
 
 @pytest.fixture
-def main_window(qtbot):
-    """Create a MainWindow instance for testing."""
-    window = MainWindow()
-    qtbot.addWidget(window)
-    return window
+def main_window(qtbot, mock_settings):
+    """Create a MainWindow instance for testing.
+    
+    Mocks background operations (version checker, MCP server, shutdown dialog)
+    to prevent hangs in CI environments.
+    """
+    with patch("logarithmic.main_window.VersionChecker") as mock_checker, \
+         patch("logarithmic.main_window.LogarithmicMcpServer"), \
+         patch("logarithmic.main_window.ShutdownDialog"):
+        mock_checker_instance = MagicMock()
+        mock_checker.return_value = mock_checker_instance
+        
+        window = MainWindow()
+        qtbot.addWidget(window)
+        yield window
+        
+        # Ensure cleanup
+        window.close()
 
 
 @pytest.mark.skip(reason="Test flaky due to QCursor.pos mocking issues with PySide6")

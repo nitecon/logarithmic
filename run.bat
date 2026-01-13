@@ -1,5 +1,5 @@
 @echo off
-REM SearchX - Run Script (Windows)
+REM Logarithmic - Run Script (Windows)
 REM Auto-fixes code, runs quality checks, then launches the application
 
 setlocal enabledelayedexpansion

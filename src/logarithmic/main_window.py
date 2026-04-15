@@ -1257,8 +1257,10 @@ class MainWindow(QMainWindow):
             lambda w, h: self._settings.set_default_window_size(w, h)
         )
         group_window.set_other_windows_callback(
-            lambda: list(self._viewer_windows.values())
-            + [gw for gw in self._group_windows.values() if gw != group_window]
+            lambda: (
+                list(self._viewer_windows.values())
+                + [gw for gw in self._group_windows.values() if gw != group_window]
+            )
         )
         group_window.set_mode_changed_callback(
             lambda mode: self._settings.set_group_mode(group_name, mode)
